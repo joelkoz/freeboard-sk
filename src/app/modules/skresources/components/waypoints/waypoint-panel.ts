@@ -1,6 +1,5 @@
 import {
   Component,
-  DestroyRef,
   effect,
   inject,
   input,
@@ -32,7 +31,6 @@ import {
 } from '../groups/groups.service';
 import { SingleSelectListDialog } from 'src/app/lib/components';
 import { CourseService } from 'src/app/modules/course';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'waypoint-panel',
@@ -54,7 +52,6 @@ export class WaypointPanel {
   waypoint = input<SKWaypoint>(new SKWaypoint());
   id = input<string>(undefined);
   related = input<string>(undefined);
-  interacting = input<boolean>(false);
 
   protected _waypoint = linkedSignal(() => this.waypoint());
   protected notes = signal<FBNotes>([]);
@@ -72,7 +69,6 @@ export class WaypointPanel {
   private course = inject(CourseService);
   protected skgroups = inject(SKResourceGroupService);
   private dialog = inject(MatDialog);
-  private destroyRef = inject(DestroyRef);
 
   constructor() {
     effect(() => {
@@ -142,13 +138,6 @@ export class WaypointPanel {
     this.skres.showNoteDetails(id);
   }
 
-  protected addNote() {
-    this.skres.showNoteEditor({
-      type: 'waypoint',
-      href: { id: this.id(), exists: true }
-    });
-  }
-
   /**
    * @description Show select Group dialog
    * @param id waypoint identifier
@@ -159,13 +148,12 @@ export class WaypointPanel {
       const glist = groups.map((g) => {
         return { id: g[0], name: g[1].name };
       });
-      if (!glist.length) {
+      if (glist.length) {
         this.app
           .showConfirm(
             'There are currently no groups defined.\nYou will need to first create a group and then add the resource.\n\nDo you want to create a new group?',
             'Group'
           )
-          .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe((r) => {
             if (r) {
               this.skgroups.editGroupInfo();
@@ -182,7 +170,6 @@ export class WaypointPanel {
           }
         })
         .afterClosed()
-        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(async (selGrp) => {
           if (selGrp) {
             try {

@@ -223,10 +223,10 @@
         </a>
       }
       @if (
+        app.config.experiments &&
         !isInteracting() &&
         app.featureFlags().radarApi &&
-        radarApi.radarId() &&
-        this.app.data.vessels.showSelf
+        radarApi.defaultRadar()
       ) {
         <a mat-menu-item (click)="toggleRadar()">
           @if (app.uiCtrl().radarLayer) {
@@ -277,63 +277,66 @@
       <mat-sidenav-container hasBackdrop="false">
         <!--info-panel-->
         <mat-sidenav
-          #sideright
+          #sideleft
           [disableClose]="false"
-          [opened]="infoPanel.opened() || app.instrumentPanel().activate"
-          (openedChange)="rightSideNavAction($event)"
+          [opened]="infoPanel.opened()"
           mode="side"
-          position="end"
-          [style.width]="infoPanel.opened() ? '250px' : '350px'"
+          position="start"
+          style="width: 250px"
         >
-          @if (this.infoPanel.item && !app.instrumentPanel().open) {
-            <info-panel>
-              @if (infoPanel.item()?.type === 'notes') {
-                <note-panel
-                  [note]="infoPanel.item().resource"
-                  [id]="infoPanel.item().id"
-                  [interacting]="isInteracting()"
-                  (edit)="
-                    skres.showNoteEditor({
-                      id: $event
-                    })
-                  "
-                  (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
-                />
-              }
-              @if (infoPanel.item()?.type === 'regions') {
-                <region-panel
-                  [region]="infoPanel.item().resource"
-                  [id]="infoPanel.item().id"
-                  [related]="infoPanel.related()"
-                  [interacting]="isInteracting()"
-                  (edit)="skres.editRegionInfo($event)"
-                  (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
-                />
-              }
-              @if (infoPanel.item()?.type === 'waypoints') {
-                <waypoint-panel
-                  [waypoint]="infoPanel.item().resource"
-                  [id]="infoPanel.item().id"
-                  [related]="infoPanel.related()"
-                  [interacting]="isInteracting()"
-                  (edit)="skres.editWaypointInfo($event)"
-                  (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
-                />
-              }
-              @if (infoPanel.item()?.type === 'routes') {
-                <route-panel
-                  [route]="infoPanel.item().resource"
-                  [id]="infoPanel.item().id"
-                  [related]="infoPanel.related()"
-                  [interacting]="isInteracting()"
-                  (edit)="skres.editRouteInfo($event)"
-                  (activate)="activateRoute($event)"
-                  (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
-                />
-              }
-            </info-panel>
-          } @else {
-            <!-- instrument panel-->
+          <info-panel>
+            @if (infoPanel.item()?.type === 'notes') {
+              <note-panel
+                [note]="infoPanel.item().resource"
+                [id]="infoPanel.item().id"
+                (edit)="
+                  skres.showNoteEditor({
+                    id: $event
+                  })
+                "
+                (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
+              />
+            }
+            @if (infoPanel.item()?.type === 'regions') {
+              <region-panel
+                [region]="infoPanel.item().resource"
+                [id]="infoPanel.item().id"
+                [related]="infoPanel.related()"
+                (edit)="skres.editRegionInfo($event)"
+                (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
+              />
+            }
+            @if (infoPanel.item()?.type === 'waypoints') {
+              <waypoint-panel
+                [waypoint]="infoPanel.item().resource"
+                [id]="infoPanel.item().id"
+                [related]="infoPanel.related()"
+                (edit)="skres.editWaypointInfo($event)"
+                (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
+              />
+            }
+            @if (infoPanel.item()?.type === 'routes') {
+              <route-panel
+                [route]="infoPanel.item().resource"
+                [id]="infoPanel.item().id"
+                [related]="infoPanel.related()"
+                (edit)="skres.editRouteInfo($event)"
+                (activate)="activateRoute($event)"
+                (panTo)="centerAndZoom($event.center, $event.zoomLevel)"
+              />
+            }
+          </info-panel>
+        </mat-sidenav>
+
+        <!--instrument-panel-->
+        @if (app.instrumentPanelAvailable()) {
+          <mat-sidenav
+            #sideright
+            mode="side"
+            position="end"
+            (openedChange)="rightSideNavAction($event)"
+            style="width: 350px"
+          >
             <div
               style="display: flex; flex-direction: column; position: relative"
             >
@@ -347,7 +350,7 @@
                     <a
                       mat-icon-button
                       [href]="instUrl()"
-                      (click)="sideright.close()"
+                      (click)="sideright.toggle()"
                       target="_blank"
                       matTooltip="Open Instruments in window."
                       matTooltipPosition="right"
@@ -400,10 +403,8 @@
                 }
               </div>
             </div>
-          }
-        </mat-sidenav>
-
-        <!-- main display content-->
+          </mat-sidenav>
+        }
         <mat-sidenav-content style="overflow: hidden">
           @if (app.sIsFetching()) {
             <div
@@ -790,7 +791,7 @@
                     <button
                       class="button-toolbar"
                       mat-mini-fab
-                      (click)="handleInstrumentPanelClick()"
+                      (click)="sideright.toggle()"
                       matTooltip="Instruments"
                       matTooltipPosition="before"
                     >
@@ -817,7 +818,7 @@
                 }
 
                 <!-- fullscreen enable -->
-                @if (this.app.isTopWindow() && displayFullscreen().enabled) {
+                @if (displayFullscreen().enabled) {
                   <div class="buttonPanelItem">
                     <button
                       mat-mini-fab

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import {
   MatBottomSheetRef,
   MAT_BOTTOM_SHEET_DATA
@@ -13,7 +13,6 @@ import { AppFacade } from 'src/app/app.facade';
 import { SignalKClient } from 'signalk-client-angular';
 import { SKAtoN } from 'src/app/modules/skresources/resource-classes';
 import { SignalKDetailsComponent } from '../../components/signalk-details.component';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'ap-aton-modal',
@@ -96,7 +95,6 @@ export class AtoNPropertiesModal implements OnInit {
 
   private app = inject(AppFacade);
   private sk = inject(SignalKClient);
-  private destroyRef = inject(DestroyRef);
   protected modalRef = inject(MatBottomSheetRef<AtoNPropertiesModal>);
   protected data = inject<{
     title: string;
@@ -123,21 +121,18 @@ export class AtoNPropertiesModal implements OnInit {
     }
     const path = this.data.id.split('.').join('/');
 
-    this.sk.api
-      .get(path)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((v) => {
-        if (this.data.type === 'meteo') {
-          this.properties = this.parseMeteo(v);
-        } else {
-          this.properties = this.parseAtoN(v);
-        }
-      });
+    this.sk.api.get(path).subscribe((v) => {
+      if (this.data.type === 'meteo') {
+        this.properties = this.parseMeteo(v);
+      } else {
+        this.properties = this.parseAtoN(v);
+      }
+    });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private parseMeteo(data: any) {
-    let res = {};
+    const res = {};
 
     if (data.navigation && data.navigation.position) {
       res['navigation.position'] = data.navigation.position.value;
@@ -158,15 +153,33 @@ export class AtoNPropertiesModal implements OnInit {
     Object.keys(bk).forEach((k: any) => {
       const pathRoot = `${pk}.${k}`;
       const g = bk[k];
-      if (typeof g.value !== 'undefined') {
+      if (k === 'water' || (k === 'current' && pk === 'environment.water')) {
+        this.processPathObject(res, g, pathRoot);
+      } else if (g.meta) {
         res[pathRoot] = this.app.formatValueForDisplay(
           g.value,
-          g.meta?.units ? g.meta?.units : '',
+          g.meta.units ? g.meta.units : '',
           k.toLowerCase().includes('level') ||
             k.toLowerCase().includes('height') // depth values
         );
       } else {
-        this.processPathObject(res, g, pathRoot);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Object.entries(g).forEach((i: any) => {
+          const key = `${pathRoot}.${i[0]}`;
+          const precision = {
+            precision: key === 'environment.outside.precipitationVolume' ? 5 : 1
+          };
+          const cat =
+            i[0].toLowerCase().includes('level') ||
+            i[0].toLowerCase().includes('height')
+              ? { category: 'depth' }
+              : {}; // depth values
+          res[key] = this.app.formatValueForDisplay(
+            i[1].value,
+            i[1].meta && i[1].meta.units ? i[1].meta.units : '',
+            Object.assign({}, cat, precision)
+          );
+        });
       }
     });
   }

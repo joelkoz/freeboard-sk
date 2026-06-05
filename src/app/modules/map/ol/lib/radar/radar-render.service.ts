@@ -7,11 +7,12 @@ import { Coordinate } from 'ol/coordinate';
 import { createEmpty } from 'ol/extent';
 import {
   RadarAPIService,
-  RadarDef
+  SKRadar
 } from 'src/app/modules/radar/radar-api.service';
 import { ShipState } from './ship-state.model';
 import { Observable } from 'rxjs';
 import { AppFacade } from 'src/app/app.facade';
+import { legend } from './legend';
 
 @Injectable({
   providedIn: 'root'
@@ -19,7 +20,7 @@ import { AppFacade } from 'src/app/app.facade';
 export class RadarRenderService {
   public hasWebgl: boolean = false;
 
-  private radars: Map<string, RadarDef> = new Map<string, RadarDef>();
+  private radars: Map<string, SKRadar> = new Map<string, SKRadar>();
   private workers: Worker[] = [];
 
   private app = inject(AppFacade);
@@ -34,25 +35,22 @@ export class RadarRenderService {
   }
 
   public async connect() {
-    // SK Radar API
-    const r = await this.radarApi.getRadar(this.radarApi.radarId());
-    const caps = await this.radarApi.getCapabilities(this.radarApi.radarId());
-    // map legend for rendering
-    const legend = {};
-    let idx = 0;
-    caps.legend?.pixels?.forEach((i) => {
-      legend[idx] = i;
-      idx++;
-    });
+    //this.radars = await firstValueFrom(this.signalk.get("/plugins/radar-sk/v1/api/radars")
+    // .pipe(map((re) => new Map<string, SKRadar>(Object.entries(re)))));
 
+    // SK Radar API
+    const state = await this.radarApi.getState(this.radarApi.defaultRadar());
+    const r = await this.radarApi.getRadar(this.radarApi.defaultRadar());
     this.radars.set(r.id, {
       id: r.id,
       name: r.name,
-      spokesPerRevolution: r.spokesPerRevolution,
+      spokes: r.spokesPerRevolution,
       maxSpokeLen: r.maxSpokeLen,
-      streamUrl: `${this.app.hostDef.ssl ? 'wss' : 'ws'}://${this.app.hostDef.name}:${
-        this.app.hostDef.port
-      }/signalk/v2/api/vessels/self/radars/${this.radarApi.radarId()}/stream`,
+      streamUrl:
+        state.streamUrl ??
+        `${this.app.hostDef.ssl ? 'wss' : 'ws'}://${this.app.hostDef.name}:${
+          this.app.hostDef.port
+        }/signalk/v2/api/vessels/self/radars/${state.id}/stream`,
       legend: legend
     });
   }
@@ -64,12 +62,12 @@ export class RadarRenderService {
     this.workers = [];
   }
 
-  public getRadars(): Map<string, RadarDef> {
+  public getRadars(): Map<string, SKRadar> {
     return this.radars;
   }
 
   public createRadarSource(
-    radar: RadarDef,
+    radar: SKRadar,
     shipState: Observable<ShipState>
   ): ImageSource {
     let range = 0;
@@ -113,10 +111,12 @@ export class RadarRenderService {
     var worker: Worker;
     if (this.hasWebgl) {
       worker = new Worker(new URL('./radar-gl.worker', import.meta.url));
+    } else {
+      worker = new Worker(new URL('./radar.worker', import.meta.url));
     }
-    let lastUpdate = 0;
 
-    /** @todo throttle layer source refresh **/
+    let lastUpdate = 0;
+    // throttle layer source refresh
     const refreshSource = () => {
       const shift = Date.now() - lastUpdate;
       if (shift > 500) {
@@ -131,8 +131,8 @@ export class RadarRenderService {
     ]);
     worker.onmessage = (event) => {
       if (event.data.redraw) {
-        radarSource.refresh();
-        //refreshSource();
+        //radarSource.refresh();
+        refreshSource();
       } else if (event.data.range) {
         range = event.data.range;
         UpdateExtent(location, range);
@@ -143,8 +143,8 @@ export class RadarRenderService {
       location = state.location;
       UpdateExtent(location, range);
       worker.postMessage({ heading: state.heading });
-      radarSource.refresh();
-      //refreshSource();
+      //radarSource.refresh();
+      refreshSource();
     });
     return radarSource;
   }

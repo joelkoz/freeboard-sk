@@ -1,4 +1,7 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
+/** Dialog Components **
+ ************************/
+
+import { Component, OnInit, Inject, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -14,6 +17,13 @@ import { MatInputModule } from '@angular/material/input';
 import { MAT_SNACK_BAR_DATA } from '@angular/material/snack-bar';
 import { MatStepperModule } from '@angular/material/stepper';
 
+/*********** MsgBox ***************
+	data: {
+        message: "<string>" text to display,
+        title: "<string>" title text,
+        buttonText"<string>" button text
+    }
+***********************************/
 @Component({
   selector: 'ap-msgbox',
   imports: [MatDialogModule, MatButtonModule],
@@ -48,21 +58,25 @@ import { MatStepperModule } from '@angular/material/stepper';
 export class MsgBox implements OnInit {
   public msglines = [];
 
-  protected dialogRef = inject(MatDialogRef<MsgBox>);
-  protected data = inject<{
-    title: string; // title text,
-    message: string; // text to display,
-    buttonText: string; // button text
-  }>(MAT_DIALOG_DATA);
+  constructor(
+    public dialogRef: MatDialogRef<MsgBox>,
+    @Inject(MAT_DIALOG_DATA) public data
+  ) {}
 
-  constructor() {}
-
+  //** lifecycle: events **
   ngOnInit() {
     this.data.buttonText = this.data.buttonText || 'OK';
     this.msglines = this.data.message.split('\n');
   }
 }
 
+/********* AlertDialog ************
+	data: {
+      message: "<string>" text to display,
+      title: "<string>" title text,
+      buttonText"<string>" button text,
+  }
+***********************************/
 @Component({
   selector: 'ap-alertdialog',
   imports: [MatDialogModule, MatIconModule, MatButtonModule],
@@ -104,21 +118,27 @@ export class AlertDialog implements OnInit {
   public msglines = [];
   public image = null;
 
-  protected dialogRef = inject(MatDialogRef<AlertDialog>);
-  protected data = inject<{
-    title: string; // title text,
-    message: string; // text to display,
-    buttonText: string; // button text
-  }>(MAT_DIALOG_DATA);
+  constructor(
+    public dialogRef: MatDialogRef<AlertDialog>,
+    @Inject(MAT_DIALOG_DATA) public data
+  ) {}
 
-  constructor() {}
-
+  //** lifecycle: events **
   ngOnInit() {
     this.data.buttonText = this.data.buttonText || 'OK';
     this.msglines = this.data.message.split('\n');
   }
 }
 
+/********* ConfirmDialog **********
+	data: {
+        message: "<string>" text to display,
+        title: "<string>" title text,
+        checkText: string text for check box
+        button1Text"<string>" button 1 text,
+        button2Text"<string>" button 2 text
+    }
+***********************************/
 @Component({
   selector: 'ap-confirmdialog',
   imports: [MatDialogModule, MatIconModule, MatCheckboxModule, MatButtonModule],
@@ -178,17 +198,12 @@ export class ConfirmDialog implements OnInit {
   public msglines = [];
   public checked = false;
 
-  protected dialogRef = inject(MatDialogRef<ConfirmDialog>);
-  protected data = inject<{
-    title: string; // title text,
-    message: string; // text to display,
-    button1Text: string; // primary button text
-    button2Text: string; //secondary button text
-    checkText: string; // check box text
-  }>(MAT_DIALOG_DATA);
+  constructor(
+    public dialogRef: MatDialogRef<ConfirmDialog>,
+    @Inject(MAT_DIALOG_DATA) public data
+  ) {}
 
-  constructor() {}
-
+  //** lifecycle: events **
   ngOnInit() {
     this.data.button1Text = this.data.button1Text || 'Yes';
     this.data.button2Text = this.data.button2Text || 'No';
@@ -196,6 +211,15 @@ export class ConfirmDialog implements OnInit {
   }
 }
 
+/********* AboutDialog ****************
+    data: {
+        name: this.app.name,  
+        version: this.app.version, 
+        description: this.app.description, 
+        logo: this.app.logo,  
+        url: this.app.url
+    }
+***************************************/
 @Component({
   selector: 'ap-about-dialog',
   imports: [MatDialogModule, MatIconModule, MatButtonModule],
@@ -253,18 +277,19 @@ export class ConfirmDialog implements OnInit {
   ]
 })
 export class AboutDialog {
-  protected dialogRef = inject(MatDialogRef<AboutDialog>);
-  protected data = inject<{
-    name: string; // app name
-    version: string; // app version
-    description: string;
-    logo: string; // path to logo image
-    url: string; // website
-  }>(MAT_DIALOG_DATA);
-
-  constructor() {}
+  constructor(
+    public dialogRef: MatDialogRef<AboutDialog>,
+    @Inject(MAT_DIALOG_DATA) public data
+  ) {}
 }
 
+/********* LoginDialog ****************
+    data: {
+        message: '',  
+        button1Text: 'Log in', 
+        button2Text: 'Cancel'
+    }
+***************************************/
 @Component({
   selector: 'ap-login-dialog',
   imports: [
@@ -332,21 +357,17 @@ export class AboutDialog {
 export class LoginDialog implements OnInit {
   @ViewChild('username', { static: false }) username;
 
-  protected imgSource = 'assets/img/success.png';
+  public imgSource = 'assets/img/success.png';
   private result = {
     cancel: false,
     user: null,
     pwd: null
   };
 
-  protected dialogRef = inject(MatDialogRef<LoginDialog>);
-  protected data = inject<{
-    message: string; // text to display,
-    button1Text: string; // primary button text
-    button2Text: string; // secondary button text
-  }>(MAT_DIALOG_DATA);
-
-  constructor() {}
+  constructor(
+    public dialogRef: MatDialogRef<LoginDialog>,
+    @Inject(MAT_DIALOG_DATA) public data
+  ) {}
 
   ngOnInit() {
     this.data.message = this.data.message || '';
@@ -383,6 +404,12 @@ export class LoginDialog implements OnInit {
   }
 }
 
+/********* MessageBarComponent ****************
+    data: {
+        message: '',  
+        sound: boolean
+    }
+***************************************/
 @Component({
   selector: 'message-bar',
   imports: [MatIconModule],
@@ -404,14 +431,15 @@ export class LoginDialog implements OnInit {
   ]
 })
 export class MessageBarComponent {
-  protected data = inject<{
-    message: string; // text to display,
-    sound: boolean; // play sound
-  }>(MAT_SNACK_BAR_DATA);
-
-  constructor() {}
+  constructor(@Inject(MAT_SNACK_BAR_DATA) public data) {}
 }
 
+/********* WelcomeDialog ****************
+    data: { 
+        buttonText: string,
+        content: []
+    }
+***************************************/
 @Component({
   selector: 'ap-welcome-dialog',
   imports: [MatDialogModule, MatStepperModule, MatIconModule, MatButtonModule],
@@ -513,17 +541,10 @@ export class MessageBarComponent {
 export class WelcomeDialog {
   public currentPage = 1;
 
-  protected dialogRef = inject(MatDialogRef<WelcomeDialog>);
-  protected data = inject<{
-    buttonText: string; // primary button text
-    content: Array<{
-      title: string;
-      message: string;
-    }>;
-    showPrefs: boolean;
-  }>(MAT_DIALOG_DATA);
-
-  constructor() {}
+  constructor(
+    public dialogRef: MatDialogRef<WelcomeDialog>,
+    @Inject(MAT_DIALOG_DATA) public data
+  ) {}
 
   ngAfterViewInit() {
     const sh = document.getElementsByClassName(

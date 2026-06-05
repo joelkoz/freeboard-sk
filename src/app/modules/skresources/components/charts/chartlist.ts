@@ -5,8 +5,7 @@ import {
   signal,
   input,
   inject,
-  output,
-  DestroyRef
+  output
 } from '@angular/core';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -38,7 +37,6 @@ import {
 } from 'src/app/lib/components';
 import { SKResourceGroupService } from '../groups/groups.service';
 import { SKChart } from '../../resource-classes';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'chart-list',
@@ -75,7 +73,6 @@ export class ChartListComponent extends ResourceListBase {
   private dialog = inject(MatDialog);
   private skgroups = inject(SKResourceGroupService);
   private mapInteract = inject(FBMapInteractService);
-  private destroyRef = inject(DestroyRef);
 
   constructor(protected override skres: SKResourceService) {
     super('charts', skres);
@@ -233,7 +230,6 @@ export class ChartListComponent extends ResourceListBase {
     this.dialog
       .open(SliderInputDialog, {
         disableClose: false,
-        hasBackdrop: false,
         data: {
           resId: chart[0],
           title: 'Set Opacity',
@@ -248,7 +244,6 @@ export class ChartListComponent extends ResourceListBase {
         }
       })
       .afterClosed()
-      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result: SliderInputDialogResult) => {
         if (result?.apply) {
           const op = toRatio(result.value);
@@ -314,25 +309,22 @@ export class ChartListComponent extends ResourceListBase {
       );
       return;
     }
-    dref
-      .afterClosed()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((sources) => {
-        if (sources && sources.length !== 0) {
-          if (['wmts', 'wms'].includes(type)) {
-            sources[0].source = 'resources-provider';
-            this.skres.newChart(sources[0]);
-            return;
-          }
-          if (['json'].includes(type)) {
-            sources[0].source = 'resources-provider';
-            const c = new SKChart(sources[0]);
-            c.source = 'resources-provider';
-            this.skres.newChart(c);
-            return;
-          }
+    dref.afterClosed().subscribe((sources) => {
+      if (sources && sources.length !== 0) {
+        if (['wmts', 'wms'].includes(type)) {
+          sources[0].source = 'resources-provider';
+          this.skres.newChart(sources[0]);
+          return;
         }
-      });
+        if (['json'].includes(type)) {
+          sources[0].source = 'resources-provider';
+          const c = new SKChart(sources[0]);
+          c.source = 'resources-provider';
+          this.skres.newChart(c);
+          return;
+        }
+      }
+    });
   }
 
   /**
@@ -374,7 +366,6 @@ export class ChartListComponent extends ResourceListBase {
           }
         })
         .afterClosed()
-        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(async (selGrp) => {
           if (selGrp) {
             try {

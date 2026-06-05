@@ -42,7 +42,6 @@ import { SKResourceService } from '../../resources.service';
 export class NotePanel {
   note = input<SKNote>(new SKNote());
   id = input<string>(undefined);
-  interacting = input<boolean>(false);
 
   protected _note = linkedSignal(() => this.note());
 

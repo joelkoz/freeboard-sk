@@ -5,8 +5,7 @@ import {
   effect,
   inject,
   output,
-  input,
-  DestroyRef
+  input
 } from '@angular/core';
 
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -32,7 +31,6 @@ import { SKWorkerService } from 'src/app/modules/skstream/skstream.service';
 import { SKResourceGroupService } from '../groups/groups.service';
 import { SingleSelectListDialog } from 'src/app/lib/components';
 import { RemarkModule } from 'ngx-remark';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'route-list',
@@ -72,7 +70,6 @@ export class RouteListComponent extends ResourceListBase {
   private worker = inject(SKWorkerService);
   private dialog = inject(MatDialog);
   private skgroups = inject(SKResourceGroupService);
-  private destroyRef = inject(DestroyRef);
 
   constructor(protected override skres: SKResourceService) {
     super('routes', skres);
@@ -228,7 +225,6 @@ export class RouteListComponent extends ResourceListBase {
           }
         })
         .afterClosed()
-        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(async (selGrp) => {
           if (selGrp) {
             try {

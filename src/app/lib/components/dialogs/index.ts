@@ -1,12 +1,4 @@
-export {
-  AboutDialog,
-  AlertDialog,
-  ConfirmDialog,
-  WelcomeDialog,
-  LoginDialog,
-  MessageBarComponent,
-  MsgBox
-} from './common-dialogs';
+export * from './common-dialogs';
 export * from './errorlist-dialog';
 export * from './playback-dialog';
 export * from './geojson/geojson-dialog';

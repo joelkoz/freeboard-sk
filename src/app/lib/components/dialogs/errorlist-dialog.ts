@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, Inject } from '@angular/core';
 import {
   MatDialogModule,
   MatDialogRef,
@@ -8,6 +8,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
 
+/********* ErrorListDialog ************
+	data: {
+      errorList: "<ErrorList>" text to display,
+      buttonText"<string>" button text,
+  }
+***********************************/
 @Component({
   selector: 'ap-errorlistdialog',
   imports: [MatDialogModule, MatIconModule, MatButtonModule, MatListModule],
@@ -48,17 +54,12 @@ import { MatListModule } from '@angular/material/list';
 export class ErrorListDialog {
   public image = null;
 
-  protected dialogRef = inject(MatDialogRef<ErrorListDialog>);
-  protected data = inject<{
-    errorList: Array<{
-      message: string;
-      status: string;
-    }>;
-    buttonText: string; // button text
-  }>(MAT_DIALOG_DATA);
+  constructor(
+    public dialogRef: MatDialogRef<ErrorListDialog>,
+    @Inject(MAT_DIALOG_DATA) public data
+  ) {}
 
-  constructor() {}
-
+  //** lifecycle: events **
   ngOnInit() {
     this.data.buttonText = this.data.buttonText || 'OK';
   }

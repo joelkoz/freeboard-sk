@@ -191,9 +191,6 @@ export interface IAppConfig {
     maxRadius: number; // max radius within which AIS targets are displayed
     proxied: boolean; // server behind a proxy server
   };
-  radars: {
-    deviceId: string;
-  };
   experiments: boolean;
   anchor: {
     radius: number; // most recent anchor radius setting

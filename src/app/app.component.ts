@@ -13,6 +13,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { Observable, Subject } from 'rxjs';
 
+// standalone
 import { CommonModule } from '@angular/common';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
@@ -32,6 +33,8 @@ import {
   TTGDialComponent
 } from './lib/components';
 
+// ****
+
 import { AppFacade } from './app.facade';
 import { InfoPanelFacade, InfoPanelComponent } from './modules/info-panel';
 import { SignalKClient } from 'signalk-client-angular';
@@ -42,8 +45,10 @@ import {
   AtoNPropertiesModal,
   AircraftPropertiesModal,
   ActiveResourcePropertiesModal,
+  ResourceImportDialog,
   ResourceSetModal,
   ResourceSetFeatureModal,
+  SettingsDialog,
   SKStreamFacade,
   SKSTREAM_MODE,
   StreamOptions,
@@ -58,6 +63,8 @@ import {
   WeatherForecastModal,
   CourseSettingsModal,
   NotificationManager,
+  GPXImportDialog,
+  GPXExportDialog,
   CourseService,
   SettingsFacade,
   AutopilotService,
@@ -82,8 +89,13 @@ import {
   RegionPanel
 } from 'src/app/modules';
 
-import { LoginDialog } from 'src/app/lib/components/dialogs';
-
+import {
+  AboutDialog,
+  LoginDialog,
+  PlaybackDialog,
+  GeoJSONImportDialog,
+  Trail2RouteDialog
+} from 'src/app/lib/components/dialogs';
 import { Convert } from 'src/app/lib/convert';
 import { GeoUtils } from 'src/app/lib/geoutils';
 
@@ -415,10 +427,6 @@ export class AppComponent {
   /** TOOLBAR ACTIONS */
 
   protected toggleRadar() {
-    if (!this.radarApi.hasWebGL) {
-      this.radarApi.showWebGLMessage();
-      return;
-    }
     this.app.uiCtrl.update((current) => {
       return Object.assign({}, current, { radarLayer: !current.radarLayer });
     });
@@ -602,9 +610,7 @@ export class AppComponent {
     }
   }
   // ** create route from vessel trail **
-  protected async trailToRoute() {
-    const { Trail2RouteDialog } =
-      await import('src/app/lib/components/dialogs/trail2route-dialog');
+  protected trailToRoute() {
     this.dialog
       .open(Trail2RouteDialog, {
         disableClose: true,
@@ -979,35 +985,18 @@ export class AppComponent {
 
   // ********* SIDENAV ACTIONS *************
 
-  protected handleInstrumentPanelClick() {
-    let value = !this.app.instrumentPanel().open;
-    if (value && this.infoPanel.opened()) {
-      this.infoPanel.close();
-    }
-
+  protected rightSideNavAction(e: boolean) {
     this.app.instrumentPanel.update((current) => {
       return Object.assign({}, current, {
-        open: value,
+        open: e,
         activate: this.app.config.display.plugins.startOnOpen
-          ? value
+          ? e
           : current.activate
       });
     });
-  }
-
-  protected rightSideNavAction(value: boolean) {
-    if (!value) {
-      //closed
-      this.app.instrumentPanel.update((current) => {
-        return Object.assign({}, current, {
-          open: value,
-          activate: this.app.config.display.plugins.startOnOpen
-            ? value
-            : current.activate
-        });
-      });
+    if (!e) {
       this.focusMap();
-    }
+    } // set when closed
   }
 
   /** control left menu display  */
@@ -1083,9 +1072,7 @@ export class AppComponent {
   // ********* MAIN MENU ACTIONS *************
 
   // ** open about dialog **
-  protected async openAbout() {
-    const { AboutDialog } =
-      await import('src/app/lib/components/dialogs/common-dialogs');
+  protected openAbout() {
     this.dialog
       .open(AboutDialog, {
         disableClose: false,
@@ -1102,9 +1089,7 @@ export class AppComponent {
   }
 
   // ** open settings dialog **
-  protected async openSettings() {
-    const { SettingsDialog } =
-      await import('src/app/modules/settings/components/settings-dialog');
+  protected openSettings() {
     this.dialog
       .open(SettingsDialog, {
         disableClose: true,
@@ -1133,9 +1118,7 @@ export class AppComponent {
   }
 
   /** process GPX file */
-  protected async processGPX(f: { data: string | ArrayBuffer; name: string }) {
-    const { GPXImportDialog } =
-      await import('src/app/modules/gpx/gpxload-dialog');
+  protected processGPX(f: { data: string | ArrayBuffer; name: string }) {
     this.dialog
       .open(GPXImportDialog, {
         disableClose: true,
@@ -1165,9 +1148,7 @@ export class AppComponent {
   }
 
   /** Export resources to GPX file */
-  protected async exportToGPX() {
-    const { GPXExportDialog } =
-      await import('src/app/modules/gpx/gpxsave-dialog');
+  protected exportToGPX() {
     this.dialog
       .open(GPXExportDialog, {
         disableClose: true,
@@ -1196,12 +1177,7 @@ export class AppComponent {
   }
 
   /** process GeoJSON file */
-  protected async processGeoJSON(f: {
-    data: string | ArrayBuffer;
-    name: string;
-  }) {
-    const { GeoJSONImportDialog } =
-      await import('src/app/lib/components/dialogs/geojson/geojson-dialog');
+  protected processGeoJSON(f: { data: string | ArrayBuffer; name: string }) {
     this.dialog
       .open(GeoJSONImportDialog, {
         disableClose: true,
@@ -1232,9 +1208,7 @@ export class AppComponent {
   }
 
   /** Import ResourceSet */
-  protected async importResourceSet() {
-    const { ResourceImportDialog } =
-      await import('src/app/modules/skresources/components/resourcesets/resource-upload-dialog');
+  protected importResourceSet() {
     this.dialog
       .open(ResourceImportDialog, {
         disableClose: true,
@@ -1259,13 +1233,12 @@ export class AppComponent {
   }
 
   // ** show login dialog **
-  protected async showLogin(
+  protected showLogin(
     message?: string,
     cancelWarning = true,
     onConnect?: boolean
-  ): Promise<void> {
-    const { LoginDialog } =
-      await import('src/app/lib/components/dialogs/common-dialogs');
+  ): Observable<boolean> {
+    const lis: Subject<boolean> = new Subject();
     this.dialog
       .open(LoginDialog, {
         disableClose: true,
@@ -1287,6 +1260,7 @@ export class AppComponent {
                 this.queryAfterConnect();
               }
               this.app.isLoggedIn.set(true);
+              lis.next(true);
             },
             error: () => {
               // ** auth failed
@@ -1334,15 +1308,15 @@ export class AppComponent {
                 `Update operations are NOT available until you have authenticated to the Signal K server.`
               );
             }
+            lis.next(false);
           }
         }
         this.focusMap();
       });
+    return lis.asObservable();
   }
 
-  protected async showPlaybackSettings() {
-    const { PlaybackDialog } =
-      await import('src/app/lib/components/dialogs/playback-dialog');
+  protected showPlaybackSettings() {
     this.dialog
       .open(PlaybackDialog, {
         disableClose: false

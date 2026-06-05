@@ -15,9 +15,9 @@ import {
   ConfirmDialog,
   WelcomeDialog,
   MessageBarComponent,
-  MsgBox
+  MsgBox,
+  ErrorListDialog
 } from './lib/components/dialogs';
-import { ErrorListDialog } from './lib/components/dialogs/errorlist-dialog';
 
 import { Convert, SI_BASE_UNIT, TARGET_UNIT } from './lib/convert';
 import { SignalKClient } from 'signalk-client-angular';
@@ -78,7 +78,7 @@ const SERVER_APPDATA_VERSION = '1.0.0';
 
 // Development SK server host details
 const DEV_SERVER = {
-  host: '192.168.86.32', //'localhost', //'192.168.86.32', // host name || ip address
+  host: 'localhost', //'192.168.86.32', // host name || ip address
   port: 3000, // port number
   ssl: false
 };
@@ -680,7 +680,7 @@ export class AppFacade extends InfoService {
   }
 
   /** returns true if not embedded (is top window)*/
-  public isTopWindow(): boolean {
+  private isTopWindow(): boolean {
     try {
       return window.self === window.top;
     } catch (e) {
@@ -1108,11 +1108,6 @@ export class AppFacade extends InfoService {
           return `${Math.floor(hr)}h ${fms}`;
         }
         return `${minutes} min`;
-      } else {
-        nv = this.formatNumericDisplay(
-          Convert.transform(value, sourceUnit, sourceUnit as TARGET_UNIT),
-          precision
-        );
       }
       return `${nv}${options?.noSymbol ? '' : symbol}`;
     } else {

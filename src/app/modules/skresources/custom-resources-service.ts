@@ -48,14 +48,10 @@ export class FBCustomResourceService {
    */
   public async initCustomCollections() {
     const rcs = {};
-    await Promise.all(
-      this.app.CUSTOM_RESOURCES.map(async (cr) => {
-        rcs[cr.featureKey] = await this.checkCustomCollection(
-          cr.name,
-          cr.description
-        );
-      })
-    );
+    for (const cr of this.app.CUSTOM_RESOURCES) {
+      let r = await this.checkCustomCollection(cr.name, cr.description);
+      rcs[cr.featureKey] = r;
+    }
     return rcs;
   }
 

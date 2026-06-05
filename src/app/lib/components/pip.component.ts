@@ -3,10 +3,9 @@ import {
   OnInit,
   ElementRef,
   ViewChild,
-  output,
-  input,
-  effect,
-  linkedSignal
+  Input,
+  Output,
+  EventEmitter
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -23,13 +22,13 @@ interface PiPVideoElement extends HTMLVideoElement {
   imports: [MatButtonModule, MatTooltipModule, MatIconModule],
   template: `
     <div style="border: gray 1px solid;border-radius:5px;display:none;">
-      <video #vid [src]="vidUrl" [muted]="_muted()" autoplay></video>
+      <video #vid [src]="vidUrl" [muted]="muted" autoplay></video>
     </div>
     <div style="padding-left: 5px;">
       <button
         class="button-toolbar"
         mat-mini-fab
-        [style.display]="src() ? 'block' : 'none'"
+        [style.display]="src ? 'block' : 'none'"
         matTooltip="Show Video"
         matTooltipPosition="left"
         [disabled]="pipMode"
@@ -40,7 +39,7 @@ interface PiPVideoElement extends HTMLVideoElement {
       <!--<button mat-mini-fab [style.display]="pipMode ? 'block' : 'none'"
                 matTooltip="Mute Audio"
                 (click)="toggleMute()">
-                <mat-icon>{{_muted() ? 'volume_off' : 'volume_mute'}}</mat-icon>
+                <mat-icon>{{muted ? 'volume_off' : 'volume_mute'}}</mat-icon>
             </button>-->
     </div>
   `,
@@ -52,21 +51,14 @@ export class PiPVideoComponent implements OnInit {
   private pipWindow: any;
   pipMode = false;
   vidUrl: string;
-  src = input<string>();
-  muted = input<boolean>(true);
-  _muted = linkedSignal(() => this.muted());
-  resize = output<[number, number]>();
-  change = output<boolean>();
-  click = output<boolean>();
+  @Input() src: string;
+  @Input() muted = true;
+  @Output() resize: EventEmitter<[number, number]> = new EventEmitter();
+  @Output() change: EventEmitter<boolean> = new EventEmitter();
+  @Output() click: EventEmitter<boolean> = new EventEmitter();
   @ViewChild('vid', { static: true }) vid: ElementRef;
 
-  constructor() {
-    effect(() => {
-      if (this.src()) {
-        this.vidUrl = this.src();
-      }
-    });
-  }
+  //constructor() {}
 
   ngOnInit() {
     if (!('pictureInPictureEnabled' in document)) {
@@ -96,6 +88,12 @@ export class PiPVideoComponent implements OnInit {
     });
   }
 
+  ngOnChanges(changes) {
+    if (changes.src && changes.src.currentValue) {
+      this.vidUrl = this.src;
+    }
+  }
+
   // ** pipWindow resize event handler **
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onPipWindowResize(event: any) {
@@ -103,7 +101,7 @@ export class PiPVideoComponent implements OnInit {
   }
 
   toggleMute() {
-    this._muted.update((current) => !current);
+    this.muted = !this.muted;
   }
 
   // ** initialise picture in picture mode

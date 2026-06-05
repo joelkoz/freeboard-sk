@@ -1,4 +1,8 @@
+/** Slider input Dialog Component **
+ ********************************/
+
 import { Component, OnInit, signal, inject } from '@angular/core';
+
 import { MatSliderModule } from '@angular/material/slider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +19,7 @@ export interface SliderInputDialogResult {
   value: number;
 }
 
+//********* SliderInputDialog *********
 @Component({
   selector: 'ap-slider-input-dialog',
   imports: [
@@ -60,7 +65,7 @@ export interface SliderInputDialogResult {
             <input
               matSliderThumb
               [value]="formattedValue()"
-              (input)="onValueChange($event)"
+              (valueChange)="setValue($event)"
             />
           </mat-slider>
           <div style="min-width: 48px; text-align: right">
@@ -83,8 +88,7 @@ export interface SliderInputDialogResult {
 export class SliderInputDialog implements OnInit {
   protected formattedValue = signal<number>(0);
 
-  protected dialogRef = inject(MatDialogRef<SliderInputDialog>);
-  protected data = inject<{
+  data = inject<{
     title: string;
     text: string;
     max: number;
@@ -96,21 +100,20 @@ export class SliderInputDialog implements OnInit {
     onChange: (value: number) => void;
   }>(MAT_DIALOG_DATA);
 
-  constructor() {}
+  constructor(private dialogRef: MatDialogRef<SliderInputDialog>) {}
 
   ngOnInit() {
     this.formattedValue.set(this.data.value);
   }
 
-  protected onValueChange(e: Event) {
-    const value = Number((e.target as HTMLInputElement).value);
+  setValue(value: number) {
     this.formattedValue.set(value);
     if (typeof this.data?.onChange === 'function') {
       this.data.onChange(value);
     }
   }
 
-  protected handleClose(apply: boolean) {
+  handleClose(apply: boolean) {
     this.dialogRef.close({
       apply: apply,
       value: this.formattedValue()

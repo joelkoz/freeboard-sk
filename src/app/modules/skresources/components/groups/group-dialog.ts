@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { MatInputModule } from '@angular/material/input';
@@ -20,7 +20,6 @@ import { SKResourceService, SKResourceType } from '../../resources.service';
 import { FBChart, FBRegion, FBRoute, FBWaypoint } from 'src/app/types';
 import { MultiSelectListDialog } from 'src/app/lib/components';
 import { AppIconDef } from 'src/app/modules/icons';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface RListEntry {
   id: string;
@@ -264,7 +263,6 @@ export class ResourceGroupDialog implements OnInit {
 
   private dialogRef = inject(MatDialogRef<ResourceGroupDialog>);
   private skres = inject(SKResourceService);
-  private destroyRef = inject(DestroyRef);
   protected dialog = inject(MatDialog);
   protected data = inject<{
     addMode: boolean;
@@ -454,7 +452,6 @@ export class ResourceGroupDialog implements OnInit {
         }
       })
       .afterClosed()
-      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((items: RListEntry[]) => {
         if (items) {
           // routes

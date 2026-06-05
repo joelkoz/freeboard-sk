@@ -18,7 +18,6 @@ export const PoiIcons: AppIconSet = {
     'bridge.svg',
     'business.svg',
     'dam.svg',
-    'dive-site.svg',
     'ferry.svg',
     'hazard.svg',
     'inlet.svg',

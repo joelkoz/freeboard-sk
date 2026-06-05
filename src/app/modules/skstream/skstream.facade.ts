@@ -197,10 +197,7 @@ export class SKStreamFacade {
       cmd: 'subscribe',
       options: {
         context: 'vessels.self',
-        path: [
-          { path: 'notifications.*', period: 1000 },
-          { path: 'radars.*', policy: 'instant' }
-        ]
+        path: [{ path: 'notifications.*', period: 1000 }]
       }
     });
     this.worker.postMessage({

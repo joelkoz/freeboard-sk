@@ -1,11 +1,4 @@
-import {
-  Component,
-  OnInit,
-  ElementRef,
-  signal,
-  effect,
-  inject
-} from '@angular/core';
+import { Component, OnInit, ElementRef, signal, effect } from '@angular/core';
 
 import { FormsModule, NgModel } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -38,7 +31,6 @@ import { SettingsOptions } from '../settings.facade';
 import { S57Service } from '../../map/ol';
 import { AppFacade } from 'src/app/app.facade';
 import { Convert, TARGET_UNIT } from 'src/app/lib/convert';
-import { RadarAPIService, SKRadar } from '../../radar/radar-api.service';
 
 interface PreferredPathsResult {
   save: boolean;
@@ -90,19 +82,17 @@ export class SettingsDialog implements OnInit {
   };
 
   protected unitsChangedSignal = signal<number>(0);
-  protected radarList = signal<SKRadar[]>([]);
 
   private saveOnClose = false;
 
-  protected facade = inject(SettingsFacade);
-  protected myElement = inject(ElementRef);
-  protected dialogRef = inject(MatDialogRef<SettingsDialog>);
-  protected wakeLock = inject(WakeLockService);
-  private s57 = inject(S57Service);
-  protected app = inject(AppFacade);
-  protected radarApi = inject(RadarAPIService);
-
-  constructor() {
+  constructor(
+    protected facade: SettingsFacade,
+    protected myElement: ElementRef,
+    protected dialogRef: MatDialogRef<SettingsDialog>,
+    protected wakeLock: WakeLockService,
+    private s57: S57Service,
+    protected app: AppFacade
+  ) {
     this.options = new SettingsOptions();
 
     effect(() => {
@@ -118,14 +108,6 @@ export class SettingsDialog implements OnInit {
         this.aisStateFilter[i] = true;
       }
     });
-    this.radarApi
-      .listRadars()
-      .then((rl) => {
-        this.radarList.set(rl);
-      })
-      .catch(() => {
-        this.radarList.set([]);
-      });
   }
 
   // format numbers in model used for form fields

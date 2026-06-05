@@ -1,8 +1,9 @@
 import {
   Component,
-  ChangeDetectionStrategy,
-  output,
-  input
+  Input,
+  Output,
+  EventEmitter,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatListModule } from '@angular/material/list';
@@ -10,15 +11,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PopoverComponent } from './popover.component';
-import { Position } from 'geojson';
-import { AppIconDef } from '../../icons';
-
-interface FeatureDef {
-  coord: Position;
-  icon: AppIconDef;
-  id: string;
-  text: string;
-}
 
 /*********** feature List Popover ***************
   title: string -  title text,
@@ -36,27 +28,21 @@ interface FeatureDef {
     PopoverComponent
   ],
   template: `
-    <ap-popover
-      [title]="title()"
-      [canClose]="canClose()"
-      (closed)="handleClose()"
-    >
+    <ap-popover [title]="title" [canClose]="canClose" (closed)="handleClose()">
       <mat-nav-list>
-        @for (f of features(); track f) {
+        @for (f of features; track f) {
           <mat-list-item (click)="handleSelect(f)">
-            @if (f.icon.svgIcon) {
-              <mat-icon
-                [svgIcon]="f.icon.svgIcon"
-                [class]="f.icon.class"
-              ></mat-icon>
+            @if (f.icon === 'route') {
+              <mat-icon class="ob" [svgIcon]="f.icon"></mat-icon>
+            } @else if (f.icon.indexOf('sk-') === 0) {
+              <mat-icon [svgIcon]="f.icon"></mat-icon>
             } @else {
               <mat-icon
-                [class]="f.icon.class"
                 [ngClass]="{
                   'icon-warn': f.text && f.text.indexOf('self') !== -1
                 }"
               >
-                {{ f.icon.name }}
+                {{ f.icon }}
               </mat-icon>
             }
             {{ f.text }}
@@ -68,13 +54,15 @@ interface FeatureDef {
   styleUrls: []
 })
 export class FeatureListPopoverComponent {
-  title = input<string>();
-  features = input<FeatureDef[]>([]);
-  canClose = input<boolean>();
-  closed = output<void>();
-  selected = output<FeatureDef>();
+  @Input() title: string;
+  @Input() features: Array<{ text: string; icon: string }> = [];
+  @Input() canClose: boolean;
+  @Output() closed: EventEmitter<void> = new EventEmitter();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  @Output() selected: EventEmitter<any> = new EventEmitter();
 
-  handleSelect(item: FeatureDef) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handleSelect(item: any) {
     this.selected.emit(item);
   }
   handleClose() {

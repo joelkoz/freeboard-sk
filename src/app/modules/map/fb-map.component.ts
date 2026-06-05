@@ -106,7 +106,6 @@ import { ScaleLine } from 'ol/control';
 import { Units } from 'ol/control/ScaleLine';
 import { DragBoxEvent } from 'ol/interaction/DragBox';
 import { MapService } from './ol/lib/map.service';
-import { AppIconDef } from '../icons';
 
 interface IResource {
   id: string;
@@ -941,7 +940,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
       {
         id: string;
         coord: Position;
-        icon: AppIconDef;
+        icon: string;
         text: string;
       }
     > = new Map(); // features under pointer
@@ -966,7 +965,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
       let meteo: SKMeteo;
       let aircraft: SKAircraft;
       let vessel: SKVessel;
-      let icon: AppIconDef;
+      let icon: string;
       let text: string;
       if (id && typeof id === 'string') {
         const t = id.split('.');
@@ -978,68 +977,45 @@ export class FBMapComponent implements OnInit, OnDestroy {
           chartBoundsFeatures.set(id, {
             id: t[1],
             coord: e.lonlat,
-            icon: 'map',
+            icon: icon,
             text: feature.get('name')
           });
         }
         switch (t[0]) {
           case 'rset':
             addToFeatureList = true;
-            icon = {
-              name: 'star',
-              svgIcon: undefined
-            };
+            icon = 'star';
             text = feature.get('name');
             break;
           case 'alarm':
             addToFeatureList = true;
-            icon = {
-              name: 'notification_important',
-              svgIcon: undefined
-            };
+            icon = 'notification_important';
             text = `Alarm: ${feature.get('type')}`;
             break;
           case 'anchor':
             addToFeatureList = true;
-            icon = {
-              name: 'anchor',
-              svgIcon: undefined
-            };
+            icon = 'anchor';
             text = `${t[0]}`;
             break;
           case 'dest':
             addToFeatureList = true;
-            icon = {
-              name: 'flag',
-              svgIcon: undefined
-            };
+            icon = 'flag';
             text = 'Destination';
             break;
           case 'note':
-            icon = {
-              svgIcon: feature.get('icon'),
-              name: undefined
-            };
+            icon = feature.get('icon');
             addToFeatureList = true;
             const n = this.skres.fromCache('notes', t[1]);
             text = n[1].name ?? '';
             break;
           case 'route':
-            icon = {
-              svgIcon: 'route',
-              name: undefined,
-              class: 'icon-route'
-            };
+            icon = 'route'; //'directions';
             addToFeatureList = true;
             const r = this.skres.fromCache('routes', t[1]);
             text = r[1].name;
             break;
           case 'waypoint':
-            icon = {
-              name: 'location_on',
-              svgIcon: undefined,
-              class: 'icon-waypoint'
-            };
+            icon = 'location_on';
             addToFeatureList = true;
             const w = this.skres.fromCache('waypoints', t[1]);
             text = w[1].name ?? '';
@@ -1047,46 +1023,31 @@ export class FBMapComponent implements OnInit, OnDestroy {
           case 'atons':
           case 'aton':
           case 'shore':
-            icon = {
-              name: 'beenhere',
-              svgIcon: undefined
-            };
+            icon = 'beenhere';
             addToFeatureList = true;
             aton = this.app.data.atons.get(id);
             text = aton ? aton.name || aton.mmsi : '';
             break;
           case 'sar':
-            icon = {
-              name: 'tour',
-              svgIcon: undefined
-            };
+            icon = 'tour';
             addToFeatureList = true;
             sar = this.app.data.sar.get(id);
             text = sar ? sar.name || sar.mmsi : 'SaR Beacon';
             break;
           case 'meteo':
-            icon = {
-              name: 'air',
-              svgIcon: undefined
-            };
+            icon = 'air';
             addToFeatureList = true;
             meteo = this.app.data.meteo.get(id);
             text = meteo ? meteo.name || meteo.mmsi : 'Weather Station';
             break;
           case 'ais-vessels':
-            icon = {
-              name: 'directions_boat',
-              svgIcon: undefined
-            };
+            icon = 'directions_boat';
             addToFeatureList = true;
             vessel = this.dfeat.ais.get(`vessels.${t[1]}`);
             text = vessel ? vessel.name || vessel.mmsi : '';
             break;
           case 'vessels':
-            icon = {
-              name: 'directions_boat',
-              svgIcon: undefined
-            };
+            icon = 'directions_boat';
             addToFeatureList = true;
             text = this.dfeat.self.name
               ? this.dfeat.self.name + ' (self)'
@@ -1094,18 +1055,11 @@ export class FBMapComponent implements OnInit, OnDestroy {
             break;
           case 'region':
             addToFeatureList = true;
-            icon = {
-              name: 'tab_unselected',
-              svgIcon: undefined,
-              class: 'icon-region'
-            };
+            icon = 'tab_unselected';
             text = feature.get('name');
             break;
           case 'aircraft':
-            icon = {
-              name: 'airplanemode_active',
-              svgIcon: undefined
-            };
+            icon = 'airplanemode_active';
             addToFeatureList = true;
             aircraft = this.app.data.aircraft.get(id);
             text = aircraft ? aircraft.name || aircraft.mmsi : '';
@@ -1117,10 +1071,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
         if (props['RCID'] && S57_CLICKABLE_LAYERS.has(props['layer'])) {
           id = `s57.${props['LNAM']}`;
           addToFeatureList = true;
-          icon = {
-            name: 'beenhere',
-            svgIcon: undefined
-          };
+          icon = 'beenhere';
           text = S57_NAMES[props['layer']];
           this.s57Features[id] = props;
         }
@@ -1314,10 +1265,6 @@ export class FBMapComponent implements OnInit, OnDestroy {
         poData.resource = item[0];
         poData.show = true;
         poData.readOnly = item[0][1]?.feature?.properties?.readOnly ?? false;
-        if (this.infoPanel.opened()) {
-          this.overlay.set(poData);
-          this.popoverInfo();
-        }
         break;
       case 'note':
         item = this.skres.fromCache('notes', t[1]);
@@ -1329,10 +1276,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
         poData.type = t[0];
         poData.title = 'Note';
         poData.resource = item;
-        poData.show = true;
-        if (this.infoPanel.opened()) {
+        if (poData.readOnly) {
+          poData.show = false;
           this.overlay.set(poData);
           this.popoverInfo();
+        } else {
+          poData.show = true;
         }
         break;
       case 'route':
@@ -1346,10 +1295,6 @@ export class FBMapComponent implements OnInit, OnDestroy {
         poData.resource = item[0];
         poData.show = true;
         poData.readOnly = item[0][1]?.feature?.properties?.readOnly ?? false;
-        if (this.infoPanel.opened()) {
-          this.overlay.set(poData);
-          this.popoverInfo();
-        }
         break;
       case 'waypoint':
         item = [this.skres.fromCache('waypoints', t[1])];
@@ -1362,10 +1307,6 @@ export class FBMapComponent implements OnInit, OnDestroy {
         poData.title = 'Waypoint';
         poData.show = true;
         poData.readOnly = item[0][1]?.feature?.properties?.readOnly ?? false;
-        if (this.infoPanel.opened()) {
-          this.overlay.set(poData);
-          this.popoverInfo();
-        }
         break;
       case 'dest':
         poData.id = id;

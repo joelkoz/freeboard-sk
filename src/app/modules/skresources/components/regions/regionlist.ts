@@ -5,8 +5,7 @@ import {
   signal,
   effect,
   output,
-  inject,
-  DestroyRef
+  inject
 } from '@angular/core';
 
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -29,7 +28,6 @@ import { SKRegion } from '../../resource-classes';
 import { SKResourceGroupService } from '../groups/groups.service';
 import { SingleSelectListDialog } from 'src/app/lib/components';
 import { RemarkModule } from 'ngx-remark';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'region-list',
@@ -63,7 +61,6 @@ export class RegionListComponent extends ResourceListBase {
   private worker = inject(SKWorkerService);
   private dialog = inject(MatDialog);
   private skgroups = inject(SKResourceGroupService);
-  private destroyRef = inject(DestroyRef);
 
   constructor(protected override skres: SKResourceService) {
     super('regions', skres);
@@ -195,7 +192,6 @@ export class RegionListComponent extends ResourceListBase {
           }
         })
         .afterClosed()
-        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(async (selGrp) => {
           if (selGrp) {
             try {

@@ -1,10 +1,18 @@
+/** Text Dial Component **
+ ************************/
+
 import {
   ChangeDetectionStrategy,
   Component,
-  effect,
-  input
+  Input,
+  SimpleChanges
 } from '@angular/core';
 
+/*********** Text Dial ***************
+title: "<string>" title text,
+value: "<string>" display value,
+units: "<string>" dsisplay units,
+***********************************/
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'ap-dial-text',
@@ -12,24 +20,27 @@ import {
   template: `
     <div class="dial-text mat-app-background">
       <div class="dial-text-title">
-        {{ title() }}&nbsp;
-        @if (subTitle()) {
-          <span class="dial-text-subtitle">({{ subTitle() }})</span>
+        {{ title }}&nbsp;
+        @if (subTitle) {
+          <span class="dial-text-subtitle">({{ subTitle }})</span>
         }
       </div>
-      <div class="dial-text-value">{{ value() }}</div>
-      <div class="dial-text-units">{{ units() }}</div>
+      <div class="dial-text-value">{{ value }}</div>
+      <div class="dial-text-units">{{ units }}</div>
     </div>
   `,
   styleUrls: ['./dial-text.css']
 })
 export class TextDialComponent {
-  title = input<string>();
-  subTitle = input<string>();
-  value = input<string>();
-  units = input<string>();
+  @Input() title: string;
+  @Input() subTitle: string;
+  @Input() value: string;
+  @Input() units: string;
 }
 
+/*********** TTG Text Dial ***************
+value: "<number>" TTG value in minutes
+***********************************/
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'ap-dial-ttg',
@@ -38,8 +49,8 @@ export class TextDialComponent {
     <div class="dial-text mat-app-background">
       <div class="dial-text-title">
         TTG&nbsp;
-        @if (subTitle()) {
-          <span class="dial-text-subtitle"> ({{ subTitle() }}) </span>
+        @if (subTitle) {
+          <span class="dial-text-subtitle"> ({{ subTitle }}) </span>
         }
       </div>
       <div class="dial-text-value">{{ ttg }}</div>
@@ -49,14 +60,14 @@ export class TextDialComponent {
   styleUrls: ['./dial-text.css']
 })
 export class TTGDialComponent {
-  value = input<number>();
-  subTitle = input<string>();
+  @Input() value: number;
+  @Input() subTitle: string;
   protected ttg: string = '--';
   protected units: string = 'min';
 
-  constructor() {
-    effect(() => {
-      const cv = this.value();
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes.value) {
+      const cv = changes.value.currentValue;
       if (typeof cv !== 'number') {
         this.ttg = '--';
         this.units = 'min';
@@ -78,10 +89,13 @@ export class TTGDialComponent {
         this.ttg = `${days}:${('00' + hours).slice(-2)}:${minutes}`;
         this.units = 'day:hr:min';
       }
-    });
+    }
   }
 }
 
+/*********** ETA Text Dial ***************
+value: "<Date>" ETA date
+***********************************/
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'ap-dial-eta',
@@ -90,8 +104,8 @@ export class TTGDialComponent {
     <div class="dial-text mat-app-background">
       <div class="dial-text-title">
         ETA&nbsp;
-        @if (subTitle()) {
-          <span class="dial-text-subtitle"> ({{ subTitle() }}) </span>
+        @if (subTitle) {
+          <span class="dial-text-subtitle"> ({{ subTitle }}) </span>
         }
       </div>
       <div class="dial-text-value">{{ etaTime }}</div>
@@ -101,21 +115,16 @@ export class TTGDialComponent {
   styleUrls: ['./dial-text.css']
 })
 export class ETADialComponent {
-  value = input<Date>();
-  subTitle = input<string>();
+  @Input() subTitle: string;
+  @Input() value: Date;
   protected etaTime: string = '--';
   protected etaDate: string = '--';
 
-  constructor() {
-    effect(() => {
-      if (this.value()) {
-        this.etaTime = this.value()
-          .toLocaleTimeString()
-          .split(':')
-          .slice(0, 2)
-          .join(':');
-        this.etaDate = this.value().toLocaleDateString();
-      }
-    });
+  ngOnChanges(changes: SimpleChanges) {
+    if (changes.value) {
+      const cv = changes.value.currentValue;
+      this.etaTime = cv.toLocaleTimeString().split(':').slice(0, 2).join(':');
+      this.etaDate = cv.toLocaleDateString();
+    }
   }
 }

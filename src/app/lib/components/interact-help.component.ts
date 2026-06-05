@@ -1,10 +1,10 @@
 import {
   Component,
   ChangeDetectionStrategy,
+  Output,
+  EventEmitter,
   computed,
-  Signal,
-  output,
-  inject
+  Signal
 } from '@angular/core';
 
 import { MatTooltip } from '@angular/material/tooltip';
@@ -14,6 +14,8 @@ import { AppFacade } from 'src/app/app.facade';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { FBMapInteractService } from 'src/app/modules/map/fbmap-interact.service';
 import { Measurements } from './measurements.component';
+
+// ********* Interaction Help Component ********
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -127,7 +129,7 @@ import { Measurements } from './measurements.component';
   ]
 })
 export class InteractionHelpComponent {
-  cancel = output<void>();
+  @Output() cancel: EventEmitter<void> = new EventEmitter();
 
   protected showHelpPanel: Signal<boolean>;
   protected showMeasurePanel: Signal<boolean>;
@@ -139,27 +141,27 @@ export class InteractionHelpComponent {
     steps: []
   };
 
-  protected app = inject(AppFacade);
-  protected mapInteract = inject(FBMapInteractService);
-
-  constructor() {
+  constructor(
+    public app: AppFacade,
+    protected mapInteract: FBMapInteractService
+  ) {
     this.showHelpPanel = computed(() => {
       return (
         (this.mapInteract.isDrawing() &&
           this.mapInteract.draw.resourceType !== 'route') ||
         this.mapInteract.isModifying() ||
         this.mapInteract.isBoxSelecting() ||
-        (this.mapInteract.isMeasuring() &&
-          this.mapInteract.measureGeometryType === 'Circle')
+        (mapInteract.isMeasuring() &&
+          mapInteract.measureGeometryType === 'Circle')
       );
     });
 
     this.showMeasurePanel = computed(() => {
       return (
-        (this.mapInteract.isMeasuring() &&
-          this.mapInteract.measureGeometryType === 'LineString') ||
-        (this.mapInteract.draw.resourceType === 'route' &&
-          (this.mapInteract.isDrawing() || this.mapInteract.isModifying()))
+        (mapInteract.isMeasuring() &&
+          mapInteract.measureGeometryType === 'LineString') ||
+        (mapInteract.draw.resourceType === 'route' &&
+          (mapInteract.isDrawing() || mapInteract.isModifying()))
       );
     });
 
@@ -169,11 +171,11 @@ export class InteractionHelpComponent {
           iconName: 'edit',
           iconText: 'Drawing Help',
           description:
-            this.mapInteract.draw.resourceType === 'region'
+            mapInteract.draw.resourceType === 'region'
               ? ''
               : 'Click on the Map where to drop the feature.',
           steps:
-            this.mapInteract.draw.resourceType === 'region'
+            mapInteract.draw.resourceType === 'region'
               ? [
                   'Click on the Map to place a vertex of the Region.',
                   'Click on the last point to end drawing.'
@@ -185,11 +187,11 @@ export class InteractionHelpComponent {
           iconName: 'edit',
           iconText: 'Modify',
           description:
-            this.mapInteract.draw.forSave.id === 'anchor'
+            mapInteract.draw.forSave.id === 'anchor'
               ? 'Click and drag to move anchor.'
               : '',
           steps:
-            this.mapInteract.draw.forSave.id !== 'anchor'
+            mapInteract.draw.forSave.id !== 'anchor'
               ? [
                   'Click and drag to move point.',
                   'Ctrl-Click or Tap-hold to remove point from a line.'
@@ -207,8 +209,8 @@ export class InteractionHelpComponent {
           ]
         };
       } else if (
-        this.mapInteract.isMeasuring() &&
-        this.mapInteract.measureGeometryType === 'Circle'
+        mapInteract.isMeasuring() &&
+        mapInteract.measureGeometryType === 'Circle'
       ) {
         this.mode = {
           iconName: 'straighten',
@@ -224,6 +226,20 @@ export class InteractionHelpComponent {
   }
 
   close() {
-    this.cancel.emit();
+    this.cancel.next();
+  }
+
+  setButtonState() {
+    /*if (this.index > 0 || (this.index === -1 && this.coords.length > 2)) {
+      this.btnDisable.prev = false;
+    } else {
+      this.btnDisable.prev = true;
+    }
+
+    if (this.index !== -1 && this.index < this.coords.length - 2) {
+      this.btnDisable.next = false;
+    } else {
+      this.btnDisable.next = true;
+    }*/
   }
 }

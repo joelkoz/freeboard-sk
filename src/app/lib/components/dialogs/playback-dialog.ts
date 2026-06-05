@@ -1,6 +1,13 @@
-import { Component, inject } from '@angular/core';
+/** History Playback Dialog **
+ ********************************/
+
+import { Component, Inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import {
+  MatDialogModule,
+  MatDialogRef,
+  MAT_DIALOG_DATA
+} from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -123,20 +130,22 @@ import { provideNativeDateAdapter } from '@angular/material/core';
   ]
 })
 export class PlaybackDialog {
-  protected hour;
-  protected minute;
-  protected formData = {
+  public hour;
+  public minute;
+  public formData = {
     context: 'all',
     startTimeHr: '00',
     startTimeMin: '00',
     startDate: null,
     playbackRate: 1
   };
-  protected maxDate = new Date();
+  public maxDate = new Date();
 
-  protected dialogRef = inject(MatDialogRef<PlaybackDialog>);
-
-  constructor() {}
+  constructor(
+    public dialogRef: MatDialogRef<PlaybackDialog>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    @Inject(MAT_DIALOG_DATA) public data: any
+  ) {}
 
   submit(cancel = false) {
     let q = {};

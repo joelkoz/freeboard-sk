@@ -36,9 +36,9 @@ import { RadarAPIService } from 'src/app/modules/radar/radar-api.service';
           "
         ></autopilot-button>
       }
-      @if (action() === 'radar') {
+      @if (action() === 'radar' && app.config.experiments) {
         <radar-button
-          [active]="app.featureFlags().radarApi && radarApi.radarId()"
+          [active]="app.featureFlags().radarApi && radarApi.defaultRadar()"
         ></radar-button>
       }
     </div>

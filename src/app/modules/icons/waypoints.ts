@@ -2,7 +2,6 @@
 
 import { AppIconSet } from './app.icons';
 import { AtoNsType1 } from './atons';
-import { PoiIcons } from './poi';
 
 const WaypointMarkerIcons: AppIconSet = {
   path: './assets/img/waypoints',
@@ -16,7 +15,6 @@ export const WaypointIcons: AppIconSet = {
   scale: 1,
   anchor: [12, 24],
   files: [
-    'waypoint.svg',
     'start-pin.svg',
     'start-boat.svg',
     'whale.svg',
@@ -44,7 +42,6 @@ export const getWaypointDefs = () => {
   addToList(WaypointMarkerIcons);
   addToList(WaypointIcons);
   addToList(AtoNsType1);
-  addToList(PoiIcons);
   waypointList['default'] = waypointList['waypoint'];
   return waypointList;
 };
