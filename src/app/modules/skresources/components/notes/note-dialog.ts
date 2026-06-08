@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CoordsPipe } from 'src/app/lib/pipes';
 import { MatButtonModule } from '@angular/material/button';
@@ -123,6 +123,7 @@ export class NoteDialog implements OnInit {
 
   protected icon: AppIconDef;
   protected poiIcons: Array<{ id: string; name: string }> = [];
+  protected showAllIcons = signal(false);
   protected data = inject<DialogData>(MAT_DIALOG_DATA);
   protected app = inject(AppFacade);
   protected dialogRef = inject(MatDialogRef<NoteDialog>);
@@ -140,7 +141,12 @@ export class NoteDialog implements OnInit {
       this.data.editable = false;
     }
     this.icon = this.cleanIconDef(getResourceIcon('notes', this.data.note));
-    this.poiIcons = selListNoteIcons();
+    this.poiIcons = selListNoteIcons(this.showAllIcons());
+  }
+
+  onShowAllToggle(checked: boolean) {
+    this.showAllIcons.set(checked);
+    this.poiIcons = selListNoteIcons(checked);
   }
 
   cleanIconDef(icon: AppIconDef) {
