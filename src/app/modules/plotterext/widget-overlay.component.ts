@@ -34,7 +34,12 @@ interface CellStyle {
   imports: [PlotterWidgetFrame],
   template: `
     @for (anchor of anchors; track anchor) {
-      <div class="pe-anchor" [class]="'pe-' + anchor" [attr.data-anchor]="anchor">
+      <div
+        class="pe-anchor"
+        [class]="'pe-' + anchor"
+        [attr.data-anchor]="anchor"
+        [style]="anchorStyle(anchor)"
+      >
         @for (placed of byAnchor()[anchor]; track placed.instanceId) {
           <div class="pe-cell" [style]="cellStyle(placed)">
             <fb-plotterext-widget [placed]="placed"></fb-plotterext-widget>
@@ -63,29 +68,30 @@ interface CellStyle {
         gap: var(--pe-gap);
         pointer-events: none;
       }
-      /* offsets keep widget areas clear of Freeboard's own chrome:
-         top/left button columns, right button bar, bottom status bar */
+      /* corner areas sit flush against the screen sides; vertical offsets
+         keep clear of Freeboard's top icon row and bottom status bar */
       .pe-tr {
         top: 60px;
-        right: 56px;
+        right: 0;
       }
       .pe-ct {
-        top: 60px;
+        top: 0;
         left: 50%;
-        transform: translateX(-50%);
+        transform: translateX(calc(-50% + var(--pe-center-shift, 0px)));
       }
       .pe-cb {
-        bottom: calc(var(--pe-margin) + 32px);
+        /* flush against the top of the Lat/Lon status bar */
+        bottom: var(--pe-statusbar-h, 24px);
         left: 50%;
-        transform: translateX(-50%);
+        transform: translateX(calc(-50% + var(--pe-center-shift, 0px)));
       }
       .pe-bl {
         bottom: calc(var(--pe-margin) + 32px);
-        left: 56px;
+        left: 0;
       }
       .pe-br {
         bottom: calc(var(--pe-margin) + 32px);
-        right: 56px;
+        right: 0;
       }
       .pe-cell {
         pointer-events: auto;
@@ -135,6 +141,43 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
     document.removeEventListener('pointermove', this.onPointerMove, true);
     document.removeEventListener('pointerup', this.onPointerEnd, true);
     document.removeEventListener('pointercancel', this.onPointerEnd, true);
+  }
+
+  /**
+   * Center anchors (ct/cb) center their *content* as a unit: when the
+   * placed widgets only use one grid column, the area shifts by half a
+   * column so a lone 1x1 widget sits dead-center, while a 2x1 (or a pair)
+   * is centered as a whole.
+   */
+  anchorStyle(anchor: AnchorId): CellStyle {
+    if (anchor !== 'ct' && anchor !== 'cb') return {};
+    const style: CellStyle = {};
+    if (anchor === 'cb') {
+      // sit flush on top of the Lat/Lon readout (OL mouse-position control)
+      const bar = document.querySelector('.ol-mouse-position');
+      if (bar) {
+        const top = bar.getBoundingClientRect().top;
+        if (top > 0) {
+          style['--pe-statusbar-h'] = `${Math.ceil(window.innerHeight - top)}px`;
+        }
+      }
+    }
+    const used = new Set<number>();
+    for (const placed of this.byAnchor()[anchor] ?? []) {
+      const def = this.service.widgetDef(placed.extension, placed.widget);
+      const { cols } = parseSize(def?.size ?? '1x1');
+      for (let c = placed.col; c < placed.col + cols && c < 2; c++) {
+        used.add(c);
+      }
+    }
+    let shift = '0px';
+    if (used.size === 1) {
+      shift = used.has(0)
+        ? 'calc((var(--pe-cell-w) + var(--pe-gap)) / 2)'
+        : 'calc((var(--pe-cell-w) + var(--pe-gap)) / -2)';
+    }
+    style['--pe-center-shift'] = shift;
+    return style;
   }
 
   cellStyle(placed: PlacedWidget): CellStyle {
