@@ -17,7 +17,7 @@
 //
 // Map/resource host APIs (buttons, filters, map.*) belong to phase 3.
 
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { SignalKClient } from 'signalk-client-angular';
@@ -39,8 +39,10 @@ import {
   PanelContribution,
   PlacedWidget,
   PlotterExtensionManifest,
+  WIDGET_CELL_GAP,
   WidgetCandidate,
   WidgetContribution,
+  cellHeightPx,
   parseSize
 } from './types';
 
@@ -69,6 +71,18 @@ export class PlotterExtensionService {
   // placements whose extension is present and compatible (drives the overlay)
   readonly activeWidgets = signal<PlacedWidget[]>([]);
   readonly initialized = signal(false);
+
+  /**
+   * Bottom offset (px) for host chrome that normally lives in the
+   * bottom-right corner (Freeboard's action button): 0 when no widgets
+   * occupy the bottom-right anchor, otherwise just above the occupied rows.
+   */
+  readonly actionButtonLift = computed(() => {
+    const br = this.activeWidgets().filter((p) => p.anchor === 'br');
+    if (!br.length) return 0;
+    const rows = br.some((p) => p.row === 0) ? 2 : 1;
+    return rows * cellHeightPx() + (rows - 1) * WIDGET_CELL_GAP + 6;
+  });
 
   private contexts = new Set<LiveContext>();
 

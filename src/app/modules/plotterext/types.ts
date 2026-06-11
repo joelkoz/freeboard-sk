@@ -109,6 +109,17 @@ export interface WidgetCandidate {
   origin: { col: number; row: number };
 }
 
+/** Grid gap in px. Keep in sync with --pe-gap in the overlay component. */
+export const WIDGET_CELL_GAP = 6;
+
+/**
+ * Widget cell height in px for the current viewport. Keep in sync with
+ * --pe-cell-h (clamp(84px, 9.5vw, 124px)) in the overlay component.
+ */
+export function cellHeightPx(): number {
+  return Math.min(124, Math.max(84, 0.095 * window.innerWidth));
+}
+
 export function parseSize(size: WidgetSize | string): {
   cols: number;
   rows: number;

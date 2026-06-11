@@ -55,6 +55,7 @@ interface CellStyle {
         inset: 0;
         z-index: 2000;
         pointer-events: none;
+        /* keep in sync with cellHeightPx()/WIDGET_CELL_GAP in types.ts */
         --pe-cell-w: clamp(96px, 11vw, 150px);
         --pe-cell-h: clamp(84px, 9.5vw, 124px);
         --pe-gap: 6px;
@@ -86,11 +87,11 @@ interface CellStyle {
         transform: translateX(calc(-50% + var(--pe-center-shift, 0px)));
       }
       .pe-bl {
-        bottom: calc(var(--pe-margin) + 32px);
+        bottom: 0;
         left: 0;
       }
       .pe-br {
-        bottom: calc(var(--pe-margin) + 32px);
+        bottom: 0;
         right: 0;
       }
       .pe-cell {
