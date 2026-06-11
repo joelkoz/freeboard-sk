@@ -298,10 +298,29 @@ export function cleanConfig(
 
   if (typeof settings.plotterExtensions === 'undefined') {
     settings.plotterExtensions = {
-      enabled: [],
       widgets: []
     };
   }
+  // migrate early plotterExtensions config shape
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (settings.plotterExtensions as any).enabled;
+  if (!Array.isArray(settings.plotterExtensions.widgets)) {
+    settings.plotterExtensions.widgets = [];
+  }
+  settings.plotterExtensions.widgets = settings.plotterExtensions.widgets
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((w: any) => {
+      // early builds used `corner` with a `tl` option
+      if (w.corner && !w.anchor) {
+        w.anchor = w.corner === 'tl' ? 'tr' : w.corner;
+        delete w.corner;
+      }
+      return w;
+    })
+    .filter(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (w: any) => ['tr', 'ct', 'cb', 'bl', 'br'].includes(w.anchor)
+    );
 
   if (typeof settings.radars === 'undefined') {
     settings.radars = {
@@ -538,7 +557,6 @@ export function defaultConfig(): IAppConfig {
     },
     experiments: false,
     plotterExtensions: {
-      enabled: [],
       widgets: []
     },
     selections: {

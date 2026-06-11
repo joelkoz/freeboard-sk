@@ -3,12 +3,17 @@
 // Responsibilities (phase 1-2 of the plotterExtensions host implementation —
 // the widget stack):
 //   - discover extension manifests from /signalk/v2/api/resources/plotterExtensions
-//   - per-extension enable/disable + widget placement persisted in app config
+//   - widget placement persisted in app config (anchor areas, gravity packing)
 //   - one HostConnection (signalk-plotterext-bus) per live iframe context
 //   - host API methods: state.get/set, signalk.subscribe/unsubscribe/put,
 //     ui.openConfigPanel, ui.closePanel
 //   - a single multiplexed delta WebSocket relaying subscribed Signal K paths
 //     to widget contexts as sk.<path> events
+//
+// There is deliberately NO host-side enable/disable for extensions: the user
+// already controls extension availability on the Signal K server (plugin
+// install + plugin enable). Presence in the plotterExtensions resource
+// collection is the enablement signal.
 //
 // Map/resource host APIs (buttons, filters, map.*) belong to phase 3.
 
@@ -26,13 +31,15 @@ import {
   windowPort
 } from 'signalk-plotterext-bus/host';
 import {
-  Corner,
-  ExtensionInfo,
+  ANCHOR_COL_ORDER,
+  ANCHOR_GRAVITY,
+  AnchorId,
   HOST_API_VERSION,
   HOST_CAPABILITIES,
   PanelContribution,
   PlacedWidget,
   PlotterExtensionManifest,
+  WidgetCandidate,
   WidgetContribution,
   parseSize
 } from './types';
@@ -59,7 +66,7 @@ interface LiveContext {
 export class PlotterExtensionService {
   // id -> manifest, as discovered from the resources API
   readonly manifests = signal<Record<string, PlotterExtensionManifest>>({});
-  // placements of currently-enabled extensions (drives the overlay)
+  // placements whose extension is present and compatible (drives the overlay)
   readonly activeWidgets = signal<PlacedWidget[]>([]);
   readonly initialized = signal(false);
 
@@ -102,55 +109,13 @@ export class PlotterExtensionService {
     this.initialized.set(true);
   }
 
-  // ---------- discovery / enablement ----------
+  // ---------- discovery ----------
 
-  extensions(): ExtensionInfo[] {
-    const enabled = this.app.config.plotterExtensions.enabled;
-    return Object.entries(this.manifests()).map(([id, manifest]) => {
-      const compat = this.checkCompatible(manifest);
-      return {
-        id,
-        manifest,
-        compatible: compat.ok,
-        incompatibleReason: compat.reason,
-        enabled: enabled.includes(id)
-      };
-    });
-  }
-
-  isEnabled(id: string): boolean {
-    return this.app.config.plotterExtensions.enabled.includes(id);
-  }
-
-  setEnabled(id: string, enabled: boolean) {
-    const list = this.app.config.plotterExtensions.enabled;
-    const idx = list.indexOf(id);
-    if (enabled && idx === -1) {
-      list.push(id);
-    } else if (!enabled && idx !== -1) {
-      list.splice(idx, 1);
-    }
-    this.app.saveConfig();
-    this.refreshActiveWidgets();
-  }
-
-  private checkCompatible(manifest: PlotterExtensionManifest): {
-    ok: boolean;
-    reason?: string;
-  } {
-    if (manifest.apiVersion !== HOST_API_VERSION) {
-      return {
-        ok: false,
-        reason: `requires extension API version ${manifest.apiVersion}`
-      };
-    }
-    const missing = (manifest.requires ?? []).filter(
-      (cap) => !HOST_CAPABILITIES.includes(cap)
+  private isCompatible(manifest: PlotterExtensionManifest): boolean {
+    if (manifest.apiVersion !== HOST_API_VERSION) return false;
+    return (manifest.requires ?? []).every((cap) =>
+      HOST_CAPABILITIES.includes(cap)
     );
-    if (missing.length) {
-      return { ok: false, reason: `requires: ${missing.join(', ')}` };
-    }
-    return { ok: true };
   }
 
   private isManifest(value: unknown): boolean {
@@ -169,37 +134,153 @@ export class PlotterExtensionService {
     return manifest?.widgets?.find((w) => w.id === widget) ?? null;
   }
 
-  /** Widgets of an extension placeable by this host (apiVersion gate). */
-  placeableWidgets(extension: string): WidgetContribution[] {
-    const manifest = this.manifests()[extension];
-    return (manifest?.widgets ?? []).filter(
-      (w) =>
-        w.type === 'iframe' &&
-        (w.apiVersion === undefined || w.apiVersion === HOST_API_VERSION)
-    );
-  }
-
   placements(): PlacedWidget[] {
     return this.app.config.plotterExtensions.widgets;
   }
 
+  /** 2x2 occupancy map of an anchor area: occupied[row][col]. */
+  private occupancy(anchor: AnchorId): boolean[][] {
+    const occupied = [
+      [false, false],
+      [false, false]
+    ];
+    for (const placed of this.placements()) {
+      if (placed.anchor !== anchor) continue;
+      const def = this.widgetDef(placed.extension, placed.widget);
+      const size = parseSize(def?.size ?? '1x1');
+      for (let r = placed.row; r < placed.row + size.rows && r < 2; r++) {
+        for (let c = placed.col; c < placed.col + size.cols && c < 2; c++) {
+          occupied[r][c] = true;
+        }
+      }
+    }
+    return occupied;
+  }
+
+  /** Whether a cell of an anchor area is occupied by a placed widget. */
+  cellOccupied(anchor: AnchorId, cell: { col: number; row: number }): boolean {
+    return this.occupancy(anchor)[cell.row]?.[cell.col] ?? true;
+  }
+
   /**
-   * Place a widget in the first free cells of the requested corner.
-   * Returns the new placement, or null when the widget does not fit.
+   * A placement is valid when every needed cell is free and the widget does
+   * not "float": widgets pack from the anchor's screen edge inward, so a
+   * widget not touching the gravity row needs the cells between it and the
+   * gravity edge occupied.
    */
+  private isValidOrigin(
+    anchor: AnchorId,
+    size: { cols: number; rows: number },
+    origin: { col: number; row: number },
+    occupied: boolean[][]
+  ): boolean {
+    if (origin.col + size.cols > 2 || origin.row + size.rows > 2) return false;
+    for (let r = origin.row; r < origin.row + size.rows; r++) {
+      for (let c = origin.col; c < origin.col + size.cols; c++) {
+        if (occupied[r][c]) return false;
+      }
+    }
+    if (size.rows === 1) {
+      const gravityRow = ANCHOR_GRAVITY[anchor] === 'bottom' ? 1 : 0;
+      if (origin.row !== gravityRow) {
+        // floating row: require support toward the gravity edge
+        for (let c = origin.col; c < origin.col + size.cols; c++) {
+          if (!occupied[gravityRow][c]) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /** Candidate origins for an anchor, most-preferred (gravity/corner) first. */
+  private originOrder(anchor: AnchorId): Array<{ col: number; row: number }> {
+    const rows = ANCHOR_GRAVITY[anchor] === 'bottom' ? [1, 0] : [0, 1];
+    const cols = ANCHOR_COL_ORDER[anchor];
+    const order: Array<{ col: number; row: number }> = [];
+    for (const row of rows) {
+      for (const col of cols) {
+        order.push({ col, row });
+      }
+    }
+    return order;
+  }
+
+  /**
+   * Best valid origin for a widget at an anchor. When a pressed cell is
+   * given, only placements covering that cell are considered, so the user's
+   * press location disambiguates (e.g. stacking on top of an existing
+   * widget vs. filling the rest of the gravity row).
+   */
+  private findOrigin(
+    anchor: AnchorId,
+    widget: WidgetContribution,
+    pressedCell?: { col: number; row: number }
+  ): { col: number; row: number } | null {
+    const size = parseSize(widget.size);
+    const occupied = this.occupancy(anchor);
+    for (const origin of this.originOrder(anchor)) {
+      if (!this.isValidOrigin(anchor, size, origin, occupied)) continue;
+      if (
+        pressedCell &&
+        !(
+          pressedCell.col >= origin.col &&
+          pressedCell.col < origin.col + size.cols &&
+          pressedCell.row >= origin.row &&
+          pressedCell.row < origin.row + size.rows
+        )
+      ) {
+        continue;
+      }
+      return origin;
+    }
+    return null;
+  }
+
+  /**
+   * All widgets (across compatible extensions) that could be added at the
+   * pressed cell of an anchor area, each with its computed origin.
+   */
+  addableWidgets(
+    anchor: AnchorId,
+    pressedCell: { col: number; row: number }
+  ): WidgetCandidate[] {
+    const result: WidgetCandidate[] = [];
+    for (const [extension, manifest] of Object.entries(this.manifests())) {
+      if (!this.isCompatible(manifest)) continue;
+      for (const widget of manifest.widgets ?? []) {
+        if (widget.type !== 'iframe') continue;
+        if (
+          widget.apiVersion !== undefined &&
+          widget.apiVersion !== HOST_API_VERSION
+        ) {
+          continue;
+        }
+        const origin = this.findOrigin(anchor, widget, pressedCell);
+        if (origin) {
+          result.push({
+            extension,
+            extensionName: manifest.name,
+            widget,
+            origin
+          });
+        }
+      }
+    }
+    return result;
+  }
+
+  /** Place a widget at a previously computed origin (see addableWidgets). */
   placeWidget(
     extension: string,
     widget: WidgetContribution,
-    corner: Corner
-  ): PlacedWidget | null {
-    const { cols, rows } = parseSize(widget.size);
-    const origin = this.findFreeOrigin(corner, cols, rows);
-    if (!origin) return null;
+    anchor: AnchorId,
+    origin: { col: number; row: number }
+  ): PlacedWidget {
     const placed: PlacedWidget = {
       instanceId: crypto.randomUUID(),
       extension,
       widget: widget.id,
-      corner,
+      anchor,
       col: origin.col,
       row: origin.row
     };
@@ -220,48 +301,17 @@ export class PlotterExtensionService {
     }
   }
 
-  private findFreeOrigin(
-    corner: Corner,
-    cols: number,
-    rows: number
-  ): { col: number; row: number } | null {
-    const occupied = [
-      [false, false],
-      [false, false]
-    ];
-    for (const placed of this.placements()) {
-      if (placed.corner !== corner) continue;
-      const def = this.widgetDef(placed.extension, placed.widget);
-      const size = parseSize(def?.size ?? '1x1');
-      for (let r = placed.row; r < placed.row + size.rows && r < 2; r++) {
-        for (let c = placed.col; c < placed.col + size.cols && c < 2; c++) {
-          occupied[r][c] = true;
-        }
-      }
-    }
-    for (let row = 0; row + rows <= 2; row++) {
-      for (let col = 0; col + cols <= 2; col++) {
-        let free = true;
-        for (let r = row; r < row + rows; r++) {
-          for (let c = col; c < col + cols; c++) {
-            if (occupied[r][c]) free = false;
-          }
-        }
-        if (free) return { col, row };
-      }
-    }
-    return null;
-  }
-
   private refreshActiveWidgets() {
     const manifests = this.manifests();
-    const enabled = this.app.config.plotterExtensions.enabled;
     this.activeWidgets.set(
-      this.placements().filter(
-        (p) =>
-          enabled.includes(p.extension) &&
-          manifests[p.extension]?.widgets?.some((w) => w.id === p.widget)
-      )
+      this.placements().filter((p) => {
+        const manifest = manifests[p.extension];
+        return (
+          manifest &&
+          this.isCompatible(manifest) &&
+          manifest.widgets?.some((w) => w.id === p.widget)
+        );
+      })
     );
   }
 

@@ -17,15 +17,42 @@ export const HOST_CAPABILITIES = [
 
 export type WidgetSize = '1x1' | '2x1' | '1x2' | '2x2';
 
-export type Corner = 'tl' | 'tr' | 'bl' | 'br';
+/**
+ * Widget anchor areas. The upper-left corner is deliberately not offered —
+ * Freeboard's own controls live there.
+ */
+export type AnchorId = 'tr' | 'ct' | 'cb' | 'bl' | 'br';
 
-export const CORNERS: Corner[] = ['tl', 'tr', 'bl', 'br'];
+export const ANCHORS: AnchorId[] = ['tr', 'ct', 'cb', 'bl', 'br'];
 
-export const CORNER_LABELS: Record<Corner, string> = {
-  tl: 'Top left',
+export const ANCHOR_LABELS: Record<AnchorId, string> = {
   tr: 'Top right',
+  ct: 'Top center',
+  cb: 'Bottom center',
   bl: 'Bottom left',
   br: 'Bottom right'
+};
+
+/**
+ * Vertical packing direction: widgets build from the screen edge of their
+ * anchor inward ("bottom up" for bottom anchors, top down for top anchors).
+ * The gravity row must fill before a widget may sit in the other row.
+ */
+export const ANCHOR_GRAVITY: Record<AnchorId, 'top' | 'bottom'> = {
+  tr: 'top',
+  ct: 'top',
+  cb: 'bottom',
+  bl: 'bottom',
+  br: 'bottom'
+};
+
+/** Preferred column fill order per anchor (toward the screen corner first). */
+export const ANCHOR_COL_ORDER: Record<AnchorId, number[]> = {
+  tr: [1, 0],
+  ct: [0, 1],
+  cb: [0, 1],
+  bl: [0, 1],
+  br: [1, 0]
 };
 
 export interface WidgetContribution {
@@ -69,17 +96,17 @@ export interface PlacedWidget {
   instanceId: string;
   extension: string;
   widget: string;
-  corner: Corner;
+  anchor: AnchorId;
   col: number;
   row: number;
 }
 
-export interface ExtensionInfo {
-  id: string;
-  manifest: PlotterExtensionManifest;
-  compatible: boolean;
-  incompatibleReason?: string;
-  enabled: boolean;
+/** A widget that could be added at a pressed anchor cell. */
+export interface WidgetCandidate {
+  extension: string;
+  extensionName: string;
+  widget: WidgetContribution;
+  origin: { col: number; row: number };
 }
 
 export function parseSize(size: WidgetSize | string): {

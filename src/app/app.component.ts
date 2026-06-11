@@ -745,11 +745,13 @@ export class AppComponent {
             })
             .finally(() => {
               this.fetchResources(true); // fetch all resource types from server
+              // after user config is final so persisted widget placements
+              // reflect the server-stored layout, not a stale local copy
+              this.plotterExt.init();
             });
           this.getFeatures();
           this.app.data.server = this.signalk.server.info;
           this.openSKStream();
-          this.plotterExt.init();
         },
         error: () => {
           this.app.showMessage(
@@ -1101,20 +1103,6 @@ export class AppComponent {
           logo: this.app.logo,
           url: this.app.url
         }
-      })
-      .afterClosed()
-      .subscribe(() => this.focusMap());
-  }
-
-  // ** open plotter extensions dialog **
-  protected async openExtensions() {
-    const { PlotterExtensionsDialog } = await import(
-      'src/app/modules/plotterext/extensions-dialog.component'
-    );
-    this.dialog
-      .open(PlotterExtensionsDialog, {
-        data: {},
-        maxHeight: '85vh'
       })
       .afterClosed()
       .subscribe(() => this.focusMap());

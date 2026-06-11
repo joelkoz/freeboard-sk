@@ -1,11 +1,29 @@
-// Widget overlay: a full-map-size layer with a 2x2 widget grid anchored in
-// each corner. The overlay itself never intercepts pointer events; only the
-// widget frames do.
+// Widget overlay: a full-map-size layer with a 2x2 widget grid at each
+// anchor position (top-right, top-center, bottom-center, bottom-left,
+// bottom-right — top-left is reserved for Freeboard's own controls).
+//
+// The overlay itself never intercepts pointer events; only placed widget
+// frames do. Adding a widget is a press-and-hold on an EMPTY anchor cell:
+// a document-level capture listener watches presses that geometrically fall
+// inside an anchor area (map interaction underneath is unaffected — the
+// gesture only fires after the pointer stays put for the hold duration).
 
-import { Component, computed } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  computed,
+  inject
+} from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { PlotterExtensionService } from './plotterext.service';
 import { PlotterWidgetFrame } from './widget-frame.component';
-import { CORNERS, PlacedWidget, parseSize } from './types';
+import { ANCHORS, AnchorId, PlacedWidget, parseSize } from './types';
+
+const HOLD_MS = 600;
+const MOVE_SLOP_PX = 8;
 
 interface CellStyle {
   [key: string]: string;
@@ -15,9 +33,9 @@ interface CellStyle {
   selector: 'fb-plotterext-overlay',
   imports: [PlotterWidgetFrame],
   template: `
-    @for (corner of corners; track corner) {
-      <div class="pe-corner" [class]="'pe-' + corner">
-        @for (placed of byCorner()[corner]; track placed.instanceId) {
+    @for (anchor of anchors; track anchor) {
+      <div class="pe-anchor" [class]="'pe-' + anchor" [attr.data-anchor]="anchor">
+        @for (placed of byAnchor()[anchor]; track placed.instanceId) {
           <div class="pe-cell" [style]="cellStyle(placed)">
             <fb-plotterext-widget [placed]="placed"></fb-plotterext-widget>
           </div>
@@ -37,7 +55,7 @@ interface CellStyle {
         --pe-gap: 6px;
         --pe-margin: 10px;
       }
-      .pe-corner {
+      .pe-anchor {
         position: absolute;
         display: grid;
         grid-template-columns: repeat(2, var(--pe-cell-w));
@@ -47,13 +65,19 @@ interface CellStyle {
       }
       /* offsets keep widget areas clear of Freeboard's own chrome:
          top/left button columns, right button bar, bottom status bar */
-      .pe-tl {
-        top: 60px;
-        left: 56px;
-      }
       .pe-tr {
         top: 60px;
         right: 56px;
+      }
+      .pe-ct {
+        top: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .pe-cb {
+        bottom: calc(var(--pe-margin) + 32px);
+        left: 50%;
+        transform: translateX(-50%);
       }
       .pe-bl {
         bottom: calc(var(--pe-margin) + 32px);
@@ -72,23 +96,46 @@ interface CellStyle {
     `
   ]
 })
-export class PlotterExtensionOverlay {
-  corners = CORNERS;
+export class PlotterExtensionOverlay implements OnInit, OnDestroy {
+  anchors = ANCHORS;
 
-  byCorner = computed(() => {
-    const result: Record<string, PlacedWidget[]> = {
-      tl: [],
-      tr: [],
-      bl: [],
-      br: []
-    };
+  byAnchor = computed(() => {
+    const result: Record<string, PlacedWidget[]> = {};
+    for (const anchor of ANCHORS) result[anchor] = [];
     for (const placed of this.service.activeWidgets()) {
-      result[placed.corner]?.push(placed);
+      result[placed.anchor]?.push(placed);
     }
     return result;
   });
 
-  constructor(private service: PlotterExtensionService) {}
+  private service = inject(PlotterExtensionService);
+  private dialog = inject(MatDialog);
+  private zone = inject(NgZone);
+  private host = inject(ElementRef<HTMLElement>);
+
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
+  private downPoint: { x: number; y: number } | null = null;
+  private onPointerDown = (e: PointerEvent) => this.pointerDown(e);
+  private onPointerMove = (e: PointerEvent) => this.pointerMove(e);
+  private onPointerEnd = () => this.cancelHold();
+
+  ngOnInit() {
+    // Outside Angular: these fire for every map interaction.
+    this.zone.runOutsideAngular(() => {
+      document.addEventListener('pointerdown', this.onPointerDown, true);
+      document.addEventListener('pointermove', this.onPointerMove, true);
+      document.addEventListener('pointerup', this.onPointerEnd, true);
+      document.addEventListener('pointercancel', this.onPointerEnd, true);
+    });
+  }
+
+  ngOnDestroy() {
+    this.cancelHold();
+    document.removeEventListener('pointerdown', this.onPointerDown, true);
+    document.removeEventListener('pointermove', this.onPointerMove, true);
+    document.removeEventListener('pointerup', this.onPointerEnd, true);
+    document.removeEventListener('pointercancel', this.onPointerEnd, true);
+  }
 
   cellStyle(placed: PlacedWidget): CellStyle {
     const def = this.service.widgetDef(placed.extension, placed.widget);
@@ -97,5 +144,90 @@ export class PlotterExtensionOverlay {
       'grid-column': `${placed.col + 1} / span ${cols}`,
       'grid-row': `${placed.row + 1} / span ${rows}`
     };
+  }
+
+  // ---------- press-and-hold to add ----------
+
+  private pointerDown(e: PointerEvent) {
+    this.cancelHold();
+    if (!e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    // Ignore presses on dialogs, menus, or other app chrome — only presses
+    // that reach the map (or empty overlay space) count.
+    const target = e.target as HTMLElement | null;
+    if (
+      target?.closest(
+        '.cdk-overlay-container, mat-dialog-container, button, mat-toolbar, .pe-cell'
+      )
+    ) {
+      return;
+    }
+    const hit = this.hitTest(e.clientX, e.clientY);
+    if (!hit) return;
+    if (this.service.cellOccupied(hit.anchor, hit.cell)) return;
+    this.downPoint = { x: e.clientX, y: e.clientY };
+    this.holdTimer = setTimeout(() => {
+      this.holdTimer = null;
+      this.zone.run(() => this.openAddPicker(hit.anchor, hit.cell));
+    }, HOLD_MS);
+  }
+
+  private pointerMove(e: PointerEvent) {
+    if (!this.holdTimer || !this.downPoint) return;
+    const dx = e.clientX - this.downPoint.x;
+    const dy = e.clientY - this.downPoint.y;
+    if (dx * dx + dy * dy > MOVE_SLOP_PX * MOVE_SLOP_PX) this.cancelHold();
+  }
+
+  private cancelHold() {
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.holdTimer = null;
+    this.downPoint = null;
+  }
+
+  private hitTest(
+    x: number,
+    y: number
+  ): { anchor: AnchorId; cell: { col: number; row: number } } | null {
+    const areas = (this.host.nativeElement as HTMLElement).querySelectorAll(
+      '.pe-anchor'
+    );
+    for (const area of Array.from(areas)) {
+      const rect = area.getBoundingClientRect();
+      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+        continue;
+      }
+      const anchor = (area as HTMLElement).dataset['anchor'] as AnchorId;
+      const col = x < rect.left + rect.width / 2 ? 0 : 1;
+      const row = y < rect.top + rect.height / 2 ? 0 : 1;
+      return { anchor, cell: { col, row } };
+    }
+    return null;
+  }
+
+  private async openAddPicker(
+    anchor: AnchorId,
+    cell: { col: number; row: number }
+  ) {
+    const candidates = this.service.addableWidgets(anchor, cell);
+    if (!candidates.length) return;
+    const { PlotterAddWidgetDialog } = await import(
+      './add-widget-dialog.component'
+    );
+    this.dialog
+      .open(PlotterAddWidgetDialog, {
+        data: { anchor, candidates },
+        width: '340px'
+      })
+      .afterClosed()
+      .subscribe((choice) => {
+        if (!choice) return;
+        const placed = this.service.placeWidget(
+          choice.extension,
+          choice.widget,
+          anchor,
+          choice.origin
+        );
+        this.service.openConfigPanel(placed);
+      });
   }
 }

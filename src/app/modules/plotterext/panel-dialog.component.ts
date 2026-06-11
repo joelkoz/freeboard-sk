@@ -45,6 +45,13 @@ export interface PlotterPanelDialogData {
         [title]="data.panel.title"
       ></iframe>
     </mat-dialog-content>
+    @if (data.targetInstance) {
+      <mat-dialog-actions class="pe-panel-actions">
+        <button mat-button class="pe-remove" (click)="removeWidget()">
+          <mat-icon>delete</mat-icon> Remove widget
+        </button>
+      </mat-dialog-actions>
+    }
   `,
   styles: [
     `
@@ -63,6 +70,12 @@ export interface PlotterPanelDialogData {
         width: 100%;
         height: 100%;
         border: none;
+      }
+      .pe-panel-actions {
+        justify-content: flex-start;
+      }
+      .pe-remove {
+        color: #d32f2f;
       }
     `
   ]
@@ -94,6 +107,13 @@ export class PlotterPanelDialog implements OnInit, OnDestroy {
       targetWidget: this.data.targetWidget,
       close: () => this.dialogRef.close()
     });
+  }
+
+  removeWidget() {
+    if (this.data.targetInstance) {
+      this.service.removeWidget(this.data.targetInstance);
+    }
+    this.dialogRef.close();
   }
 
   ngOnDestroy() {
