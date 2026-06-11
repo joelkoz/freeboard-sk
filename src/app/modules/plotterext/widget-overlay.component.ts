@@ -45,22 +45,23 @@ interface CellStyle {
         gap: var(--pe-gap);
         pointer-events: none;
       }
+      /* offsets keep widget areas clear of Freeboard's own chrome:
+         top/left button columns, right button bar, bottom status bar */
       .pe-tl {
-        top: var(--pe-margin);
-        left: var(--pe-margin);
+        top: 60px;
+        left: 56px;
       }
       .pe-tr {
-        top: var(--pe-margin);
-        right: var(--pe-margin);
+        top: 60px;
+        right: 56px;
       }
-      /* keep clear of bottom toolbar / attribution */
       .pe-bl {
-        bottom: calc(var(--pe-margin) + 28px);
-        left: var(--pe-margin);
+        bottom: calc(var(--pe-margin) + 32px);
+        left: 56px;
       }
       .pe-br {
-        bottom: calc(var(--pe-margin) + 28px);
-        right: var(--pe-margin);
+        bottom: calc(var(--pe-margin) + 32px);
+        right: 56px;
       }
       .pe-cell {
         pointer-events: auto;
