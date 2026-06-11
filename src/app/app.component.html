@@ -255,6 +255,10 @@
       }
 
       <mat-divider></mat-divider>
+      <a mat-menu-item (click)="openExtensions()">
+        <mat-icon>extension</mat-icon>
+        <span>Extensions</span>
+      </a>
       <a mat-menu-item (click)="openSettings()">
         <mat-icon>settings</mat-icon>
         <span>Settings</span>
@@ -968,6 +972,9 @@
             </fb-map>
           </div>
           <!--/map panel-->
+
+          <!-- Plotter extension widget overlay -->
+          <fb-plotterext-overlay></fb-plotterext-overlay>
 
           <!-- North Arrow -->
           <div style="position: absolute; top: 60px; left: 56px; width: 50px">

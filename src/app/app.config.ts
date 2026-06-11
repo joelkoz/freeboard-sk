@@ -296,6 +296,13 @@ export function cleanConfig(
     };
   }
 
+  if (typeof settings.plotterExtensions === 'undefined') {
+    settings.plotterExtensions = {
+      enabled: [],
+      widgets: []
+    };
+  }
+
   if (typeof settings.radars === 'undefined') {
     settings.radars = {
       deviceId: ''
@@ -530,6 +537,10 @@ export function defaultConfig(): IAppConfig {
       deviceId: undefined
     },
     experiments: false,
+    plotterExtensions: {
+      enabled: [],
+      widgets: []
+    },
     selections: {
       routes: [],
       waypoints: [],

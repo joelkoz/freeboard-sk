@@ -195,6 +195,18 @@ export interface IAppConfig {
     deviceId: string;
   };
   experiments: boolean;
+  plotterExtensions: {
+    // ** plotter extension host (plotterExtensions resource type)
+    enabled: string[]; // enabled extension ids
+    widgets: Array<{
+      instanceId: string; // host-assigned GUID for this placement
+      extension: string; // extension (resource) id
+      widget: string; // manifest-local widget id
+      corner: 'tl' | 'tr' | 'bl' | 'br';
+      col: number; // origin cell column (0 | 1)
+      row: number; // origin cell row (0 | 1)
+    }>;
+  };
   anchor: {
     radius: number; // most recent anchor radius setting
     setRadius: boolean; // checks inital anchor radius setting

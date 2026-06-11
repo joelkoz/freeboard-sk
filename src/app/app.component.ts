@@ -106,6 +106,8 @@ import {
   SelectionResultDef
 } from './modules/map/fbmap-interact.service';
 import { RadarAPIService } from './modules/radar/radar-api.service';
+import { PlotterExtensionService } from './modules/plotterext/plotterext.service';
+import { PlotterExtensionOverlay } from './modules/plotterext/widget-overlay.component';
 import {
   RoutePanel,
   SKResourceType,
@@ -165,7 +167,8 @@ interface DrawEndEvent {
     NotePanel,
     RegionPanel,
     WaypointPanel,
-    RoutePanel
+    RoutePanel,
+    PlotterExtensionOverlay
   ]
 })
 export class AppComponent {
@@ -264,6 +267,7 @@ export class AppComponent {
   private settings = inject(SettingsFacade);
   protected autopilot = inject(AutopilotService);
   protected radarApi = inject(RadarAPIService);
+  protected plotterExt = inject(PlotterExtensionService);
 
   constructor() {
     // set self to active vessel
@@ -745,6 +749,7 @@ export class AppComponent {
           this.getFeatures();
           this.app.data.server = this.signalk.server.info;
           this.openSKStream();
+          this.plotterExt.init();
         },
         error: () => {
           this.app.showMessage(
@@ -1096,6 +1101,20 @@ export class AppComponent {
           logo: this.app.logo,
           url: this.app.url
         }
+      })
+      .afterClosed()
+      .subscribe(() => this.focusMap());
+  }
+
+  // ** open plotter extensions dialog **
+  protected async openExtensions() {
+    const { PlotterExtensionsDialog } = await import(
+      'src/app/modules/plotterext/extensions-dialog.component'
+    );
+    this.dialog
+      .open(PlotterExtensionsDialog, {
+        data: {},
+        maxHeight: '85vh'
       })
       .afterClosed()
       .subscribe(() => this.focusMap());
