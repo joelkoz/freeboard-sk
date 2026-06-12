@@ -17,12 +17,16 @@
 //
 // Map/resource host APIs (buttons, filters, map.*) belong to phase 3.
 
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, isDevMode, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { SignalKClient } from 'signalk-client-angular';
+import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
 
 import { AppFacade } from 'src/app/app.facade';
+import { SKResourceService } from 'src/app/modules/skresources/resources.service';
+import { MapService } from 'src/app/modules/map/ol/lib/map.service';
+import { FBNotes } from 'src/app/types';
 import {
   HostConnection,
   MethodHandler,
@@ -34,11 +38,14 @@ import {
   ANCHOR_COL_ORDER,
   ANCHOR_GRAVITY,
   AnchorId,
+  ButtonContribution,
   HOST_API_VERSION,
   HOST_CAPABILITIES,
   PanelContribution,
   PlacedWidget,
   PlotterExtensionManifest,
+  ResourceFilterCondition,
+  ResourceFilterSpec,
   WIDGET_CELL_GAP,
   WidgetCandidate,
   WidgetContribution,
@@ -84,6 +91,208 @@ export class PlotterExtensionService {
     return rows * cellHeightPx() + (rows - 1) * WIDGET_CELL_GAP + 6;
   });
 
+  /** Toolbar buttons contributed by compatible extensions. */
+  readonly toolbarButtons = computed(() => {
+    const result: Array<{
+      extension: string;
+      extensionName: string;
+      button: ButtonContribution;
+    }> = [];
+    for (const [extension, manifest] of Object.entries(this.manifests())) {
+      if (!this.isCompatible(manifest)) continue;
+      for (const button of manifest.buttons ?? []) {
+        if (
+          button.apiVersion !== undefined &&
+          button.apiVersion !== HOST_API_VERSION
+        ) {
+          continue;
+        }
+        result.push({ extension, extensionName: manifest.name, button });
+      }
+    }
+    return result;
+  });
+
+  // ---------- extension panels (button-opened, ui.openPanel) ----------
+
+  /**
+   * Open panels live in a right-side drawer. keepAlive panels stay loaded
+   * (hidden) when closed; onOpen panels are destroyed. One panel is visible
+   * at a time.
+   */
+  readonly openPanels = signal<
+    Array<{
+      key: string;
+      extension: string;
+      panel: PanelContribution;
+      visible: boolean;
+    }>
+  >([]);
+
+  readonly visiblePanel = computed(
+    () => this.openPanels().find((p) => p.visible) ?? null
+  );
+
+  openPanel(extension: string, panelId: string): boolean {
+    const manifest = this.manifests()[extension];
+    const panel = manifest?.panels?.find((p) => p.id === panelId);
+    if (!panel || panel.type !== 'iframe' || !panel.url) return false;
+    const key = `${extension}/${panelId}`;
+    this.openPanels.update((panels) => {
+      const existing = panels.find((p) => p.key === key);
+      if (existing) {
+        return panels.map((p) => ({ ...p, visible: p.key === key }));
+      }
+      return [
+        ...panels.map((p) => ({ ...p, visible: false })),
+        { key, extension, panel, visible: true }
+      ];
+    });
+    return true;
+  }
+
+  /** Close the visible drawer panel (hide keepAlive, destroy others). */
+  closeVisiblePanel() {
+    this.openPanels.update((panels) => {
+      const visible = panels.find((p) => p.visible);
+      if (!visible) return panels;
+      if (visible.panel.lifecycle === 'keepAlive') {
+        return panels.map((p) => ({ ...p, visible: false }));
+      }
+      return panels.filter((p) => p.key !== visible.key);
+    });
+  }
+
+  handleButtonAction(extension: string, button: ButtonContribution) {
+    if (button.action?.type === 'openPanel' && button.action.panel) {
+      this.openPanel(extension, button.action.panel);
+    }
+  }
+
+  // ---------- resource display filters ----------
+
+  /** type -> extension id -> filter */
+  readonly resourceFilters = signal<
+    Record<string, Record<string, ResourceFilterSpec>>
+  >({});
+
+  /** Notes to display: the resource cache with active filters applied. */
+  readonly visibleNotes = computed<FBNotes>(() => {
+    const notes = this.skres.notes();
+    const filters = this.resourceFilters()['notes'];
+    if (!filters || !Object.keys(filters).length) return notes;
+    const specs = Object.values(filters);
+    return notes.filter(([id, note]) =>
+      specs.every((spec) => this.passesFilter(spec, id, note))
+    );
+  });
+
+  /** Active-filter chips for the host UI. */
+  readonly filterChips = computed(() => {
+    const chips: Array<{
+      type: string;
+      extension: string;
+      label: string;
+    }> = [];
+    for (const [type, byExt] of Object.entries(this.resourceFilters())) {
+      for (const [extension, spec] of Object.entries(byExt)) {
+        chips.push({
+          type,
+          extension,
+          label:
+            spec.label ??
+            `${this.manifests()[extension]?.name ?? extension} filter`
+        });
+      }
+    }
+    return chips;
+  });
+
+  setResourceFilter(
+    extension: string,
+    type: string,
+    filter: ResourceFilterSpec
+  ) {
+    this.resourceFilters.update((all) => ({
+      ...all,
+      [type]: { ...(all[type] ?? {}), [extension]: filter }
+    }));
+    this.publishToExtension(extension, 'filters.changed', { type });
+  }
+
+  clearResourceFilter(extension: string, type: string) {
+    this.resourceFilters.update((all) => {
+      const byExt = { ...(all[type] ?? {}) };
+      delete byExt[extension];
+      const next = { ...all };
+      if (Object.keys(byExt).length) {
+        next[type] = byExt;
+      } else {
+        delete next[type];
+      }
+      return next;
+    });
+    this.publishToExtension(extension, 'filters.changed', { type });
+  }
+
+  private passesFilter(
+    spec: ResourceFilterSpec,
+    id: string,
+    resource: unknown
+  ): boolean {
+    let matches = true;
+    if (spec.ids) {
+      matches = spec.ids.includes(id);
+    }
+    if (matches && spec.match) {
+      matches = spec.match.every((cond) =>
+        this.evalCondition(cond, resource)
+      );
+    }
+    return spec.mode === 'exclude' ? !matches : matches;
+  }
+
+  private evalCondition(
+    cond: ResourceFilterCondition,
+    resource: unknown
+  ): boolean {
+    let value: unknown = resource;
+    for (const seg of cond.path.split('.')) {
+      if (value === null || typeof value !== 'object') {
+        value = undefined;
+        break;
+      }
+      value = (value as Record<string, unknown>)[seg];
+    }
+    switch (cond.op) {
+      case 'exists':
+        return value !== undefined;
+      case 'eq':
+        return value === cond.value;
+      case 'ne':
+        return value !== cond.value;
+      case 'lt':
+        return typeof value === 'number' && value < (cond.value as number);
+      case 'lte':
+        return typeof value === 'number' && value <= (cond.value as number);
+      case 'gt':
+        return typeof value === 'number' && value > (cond.value as number);
+      case 'gte':
+        return typeof value === 'number' && value >= (cond.value as number);
+      case 'in':
+        return Array.isArray(cond.value) && cond.value.includes(value);
+      case 'contains':
+        if (typeof value === 'string') {
+          return value
+            .toLowerCase()
+            .includes(String(cond.value).toLowerCase());
+        }
+        return Array.isArray(value) && value.includes(cond.value);
+      default:
+        return false;
+    }
+  }
+
   private contexts = new Set<LiveContext>();
 
   // ---- Signal K delta relay (one WS for all widget contexts) ----
@@ -95,8 +304,15 @@ export class PlotterExtensionService {
   constructor(
     private app: AppFacade,
     private signalk: SignalKClient,
-    private dialog: MatDialog
-  ) {}
+    private dialog: MatDialog,
+    private skres: SKResourceService,
+    private mapService: MapService
+  ) {
+    if (isDevMode()) {
+      // console handle for exercising the host API during development
+      (window as unknown as Record<string, unknown>)['fbPlotterExt'] = this;
+    }
+  }
 
   /** Fetch manifests. Called after the server connection is established. */
   async init(): Promise<void> {
@@ -381,8 +597,20 @@ export class PlotterExtensionService {
         ...this.stateMethods(placed.extension, placed.instanceId),
         ...this.signalkMethods(ctx),
         ...this.unitsMethods(),
+        ...this.resourcesMethods(placed.extension),
+        ...this.mapMethods(),
         'ui.openConfigPanel': async () => {
           this.openConfigPanel(placed);
+          return {};
+        },
+        'ui.openPanel': async (params) => {
+          const { panel } = (params ?? {}) as { panel?: string };
+          if (!panel || !this.openPanel(placed.extension, panel)) {
+            throw new RpcError(`No such panel: ${panel}`, {
+              code: RPC_ERRORS.INVALID_PARAMS,
+              reason: 'UNKNOWN_PANEL'
+            });
+          }
           return {};
         }
       },
@@ -428,8 +656,20 @@ export class PlotterExtensionService {
         ...this.stateMethods(opts.extension, opts.targetInstance ?? null),
         ...this.signalkMethods(ctx),
         ...this.unitsMethods(),
+        ...this.resourcesMethods(opts.extension),
+        ...this.mapMethods(),
         'ui.closePanel': async () => {
           opts.close();
+          return {};
+        },
+        'ui.openPanel': async (params) => {
+          const { panel } = (params ?? {}) as { panel?: string };
+          if (!panel || !this.openPanel(opts.extension, panel)) {
+            throw new RpcError(`No such panel: ${panel}`, {
+              code: RPC_ERRORS.INVALID_PARAMS,
+              reason: 'UNKNOWN_PANEL'
+            });
+          }
           return {};
         }
       },
@@ -580,6 +820,161 @@ export class PlotterExtensionService {
         ctx.conn.publish(event, params);
       }
     }
+  }
+
+  // ---------- resources host API ----------
+
+  private resourcesMethods(extension: string): Record<string, MethodHandler> {
+    return {
+      'resources.list': async (params) => {
+        const { type, query } = (params ?? {}) as {
+          type?: string;
+          query?: Record<string, unknown>;
+        };
+        if (typeof type !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(type)) {
+          throw new RpcError('resources.list requires a resource type', {
+            code: RPC_ERRORS.INVALID_PARAMS,
+            reason: 'INVALID_TYPE'
+          });
+        }
+        const qs = this.serializeQuery(query);
+        try {
+          const result = await firstValueFrom(
+            this.signalk.api.get(
+              this.app.skApiVersion,
+              `/resources/${type}${qs}`
+            )
+          );
+          return result ?? {};
+        } catch (err) {
+          throw new RpcError(`resources.list ${type} failed`, {
+            reason: 'LIST_FAILED',
+            data: { message: (err as Error)?.message }
+          });
+        }
+      },
+      'resources.setFilter': async (params) => {
+        const { type, filter } = (params ?? {}) as {
+          type?: string;
+          filter?: ResourceFilterSpec;
+        };
+        if (
+          typeof type !== 'string' ||
+          !filter ||
+          (filter.mode !== 'include' && filter.mode !== 'exclude') ||
+          (filter.ids === undefined && filter.match === undefined) ||
+          (filter.ids !== undefined &&
+            (!Array.isArray(filter.ids) ||
+              !filter.ids.every((id) => typeof id === 'string'))) ||
+          (filter.match !== undefined && !Array.isArray(filter.match))
+        ) {
+          throw new RpcError(
+            'resources.setFilter requires a type and a filter with mode plus ids and/or match',
+            { code: RPC_ERRORS.INVALID_PARAMS, reason: 'INVALID_FILTER' }
+          );
+        }
+        this.setResourceFilter(extension, type, filter);
+        return {};
+      },
+      'resources.clearFilter': async (params) => {
+        const { type } = (params ?? {}) as { type?: string };
+        if (typeof type !== 'string') {
+          throw new RpcError('resources.clearFilter requires a type', {
+            code: RPC_ERRORS.INVALID_PARAMS,
+            reason: 'INVALID_TYPE'
+          });
+        }
+        this.clearResourceFilter(extension, type);
+        return {};
+      }
+    };
+  }
+
+  private serializeQuery(query?: Record<string, unknown>): string {
+    if (!query || typeof query !== 'object') return '';
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(query)) {
+      if (value === undefined || value === null) continue;
+      const serialized = Array.isArray(value)
+        ? JSON.stringify(value)
+        : String(value);
+      parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(serialized)}`);
+    }
+    return parts.length ? `?${parts.join('&')}` : '';
+  }
+
+  // ---------- map host API ----------
+
+  private olView() {
+    const map = this.mapService.getMaps()[0];
+    return map ? { map, view: map.getView() } : null;
+  }
+
+  private mapMethods(): Record<string, MethodHandler> {
+    return {
+      'map.getView': async () => {
+        const ctx = this.olView();
+        if (!ctx) {
+          throw new RpcError('Map not available', { reason: 'NO_MAP' });
+        }
+        const center = toLonLat(ctx.view.getCenter() ?? [0, 0]);
+        const bounds = transformExtent(
+          ctx.view.calculateExtent(ctx.map.getSize()),
+          'EPSG:3857',
+          'EPSG:4326'
+        );
+        return { center, zoom: ctx.view.getZoom(), bounds };
+      },
+      'map.center': async (params) => {
+        const { position, zoom } = (params ?? {}) as {
+          position?: [number, number];
+          zoom?: number;
+        };
+        if (
+          !Array.isArray(position) ||
+          position.length !== 2 ||
+          !position.every((v) => typeof v === 'number')
+        ) {
+          throw new RpcError('map.center requires position [lon, lat]', {
+            code: RPC_ERRORS.INVALID_PARAMS,
+            reason: 'INVALID_POSITION'
+          });
+        }
+        const ctx = this.olView();
+        if (!ctx) {
+          throw new RpcError('Map not available', { reason: 'NO_MAP' });
+        }
+        ctx.view.animate({
+          center: fromLonLat(position),
+          ...(typeof zoom === 'number' ? { zoom } : {}),
+          duration: 500
+        });
+        return {};
+      },
+      'map.fitBounds': async (params) => {
+        const { bounds } = (params ?? {}) as { bounds?: number[] };
+        if (
+          !Array.isArray(bounds) ||
+          bounds.length !== 4 ||
+          !bounds.every((v) => typeof v === 'number')
+        ) {
+          throw new RpcError(
+            'map.fitBounds requires bounds [minLon, minLat, maxLon, maxLat]',
+            { code: RPC_ERRORS.INVALID_PARAMS, reason: 'INVALID_BOUNDS' }
+          );
+        }
+        const ctx = this.olView();
+        if (!ctx) {
+          throw new RpcError('Map not available', { reason: 'NO_MAP' });
+        }
+        ctx.view.fit(transformExtent(bounds, 'EPSG:4326', 'EPSG:3857'), {
+          padding: [70, 70, 70, 70],
+          maxZoom: 16,
+          duration: 500
+        });
+        return {};
+      }
+    };
   }
 
   // ---------- unit preferences ----------

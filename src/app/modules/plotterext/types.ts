@@ -7,13 +7,18 @@ export const PLOTTER_EXTENSIONS_RESOURCE = 'plotterExtensions';
 /** Host API major version implemented by this Freeboard build. */
 export const HOST_API_VERSION = '1';
 
-/** Capabilities advertised by this (partial, widget-focused) host build. */
+/** Capabilities advertised by this host build. */
 export const HOST_CAPABILITIES = [
   'widgets',
   'panels.iframe',
+  'buttons',
   'signalk.stream',
   'signalk.put',
-  'units'
+  'units',
+  'map',
+  'resources',
+  'resources.filter',
+  'ui'
 ];
 
 export type WidgetSize = '1x1' | '2x1' | '1x2' | '2x2';
@@ -67,6 +72,30 @@ export interface WidgetContribution {
   apiVersion?: string;
 }
 
+export interface ButtonContribution {
+  id: string;
+  title: string;
+  slot?: string;
+  /** Material icon name rendered by this host (generic `symbol` refs TBD). */
+  icon?: string;
+  symbol?: string;
+  action?: { type: string; panel?: string };
+  apiVersion?: string;
+}
+
+export interface ResourceFilterCondition {
+  path: string;
+  op: 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'in' | 'contains' | 'exists';
+  value?: unknown;
+}
+
+export interface ResourceFilterSpec {
+  mode: 'include' | 'exclude';
+  ids?: string[];
+  match?: ResourceFilterCondition[];
+  label?: string;
+}
+
 export interface PanelContribution {
   id: string;
   title: string;
@@ -87,6 +116,7 @@ export interface PlotterExtensionManifest {
   optional?: string[];
   widgets?: WidgetContribution[];
   panels?: PanelContribution[];
+  buttons?: ButtonContribution[];
   // Future contribution sections (buttons, background, resourceFilters) are
   // tolerated but not consumed by this build.
   [key: string]: unknown;

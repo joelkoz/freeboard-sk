@@ -933,6 +933,30 @@
                     <br />&nbsp;<br />
                   </div>
                 }
+
+                <!-- plotter extension buttons -->
+                @for (
+                  entry of plotterExt.toolbarButtons();
+                  track entry.extension + '/' + entry.button.id
+                ) {
+                  <div class="buttonPanelItem">
+                    <button
+                      class="button-toolbar"
+                      mat-mini-fab
+                      [matTooltip]="entry.button.title"
+                      matTooltipPosition="before"
+                      (click)="
+                        plotterExt.handleButtonAction(
+                          entry.extension,
+                          entry.button
+                        )
+                      "
+                    >
+                      <mat-icon>{{ entry.button.icon || 'extension' }}</mat-icon>
+                    </button>
+                    <br />&nbsp;<br />
+                  </div>
+                }
               </div>
             }
             <!-- /right button bar -->
@@ -971,6 +995,9 @@
 
           <!-- Plotter extension widget overlay -->
           <fb-plotterext-overlay></fb-plotterext-overlay>
+
+          <!-- Plotter extension panel drawer -->
+          <fb-plotterext-panel-drawer></fb-plotterext-panel-drawer>
 
           <!-- North Arrow -->
           <div style="position: absolute; top: 60px; left: 56px; width: 50px">

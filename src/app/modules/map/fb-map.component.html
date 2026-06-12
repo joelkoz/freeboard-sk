@@ -450,9 +450,9 @@
   >
   </fb-regions>
 
-  <!-- Notes -->
+  <!-- Notes (display-filtered by plotter extensions) -->
   @if (showNoteslayer()) {
-    <fb-notes [notes]="skres.notes()" [zIndex]="450"> </fb-notes>
+    <fb-notes [notes]="plotterExt.visibleNotes()" [zIndex]="450"> </fb-notes>
   }
 
   <!-- Distance & Bearing to -->

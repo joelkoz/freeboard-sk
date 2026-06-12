@@ -108,6 +108,7 @@ import {
 import { RadarAPIService } from './modules/radar/radar-api.service';
 import { PlotterExtensionService } from './modules/plotterext/plotterext.service';
 import { PlotterExtensionOverlay } from './modules/plotterext/widget-overlay.component';
+import { PlotterPanelDrawer } from './modules/plotterext/panel-drawer.component';
 import {
   RoutePanel,
   SKResourceType,
@@ -168,7 +169,8 @@ interface DrawEndEvent {
     RegionPanel,
     WaypointPanel,
     RoutePanel,
-    PlotterExtensionOverlay
+    PlotterExtensionOverlay,
+    PlotterPanelDrawer
   ]
 })
 export class AppComponent {

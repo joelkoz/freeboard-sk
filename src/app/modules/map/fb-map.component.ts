@@ -50,6 +50,7 @@ import { GeoUtils, Angle } from 'src/app/lib/geoutils';
 import { LineString, MultiLineString, Position } from 'src/app/types';
 
 import { AppFacade } from 'src/app/app.facade';
+import { PlotterExtensionService } from 'src/app/modules/plotterext/plotterext.service';
 
 import {
   SKResourceService,
@@ -264,6 +265,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
   protected skstream = inject(SKStreamFacade);
   protected anchor = inject(AnchorService);
   protected notiMgr = inject(NotificationManager);
+  protected plotterExt = inject(PlotterExtensionService);
   protected course = inject(CourseService);
   protected mapInteract = inject(FBMapInteractService);
   protected mapService = inject(MapService);

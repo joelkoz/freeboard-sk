@@ -18,6 +18,7 @@ import {
   inject
 } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
 import { PlotterExtensionService } from './plotterext.service';
 import { PlotterWidgetFrame } from './widget-frame.component';
 import { ANCHORS, AnchorId, PlacedWidget, parseSize } from './types';
@@ -31,8 +32,28 @@ interface CellStyle {
 
 @Component({
   selector: 'fb-plotterext-overlay',
-  imports: [PlotterWidgetFrame],
+  imports: [PlotterWidgetFrame, MatIconModule],
   template: `
+    @if (service.filterChips().length) {
+      <div
+        class="pe-chips"
+        [class.pe-chips-low]="(byAnchor()['ct'] ?? []).length > 0"
+      >
+        @for (chip of service.filterChips(); track chip.type + chip.extension) {
+          <div class="pe-chip">
+            <mat-icon class="pe-chip-icon">filter_alt</mat-icon>
+            <span class="pe-chip-label">{{ chip.label }}</span>
+            <button
+              class="pe-chip-clear"
+              (click)="clearChip(chip)"
+              aria-label="Clear filter"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+    }
     @for (anchor of anchors; track anchor) {
       <div
         class="pe-anchor"
@@ -100,6 +121,61 @@ interface CellStyle {
         border-radius: 10px;
         box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
       }
+      /* active resource-filter chips */
+      .pe-chips {
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        pointer-events: auto;
+        z-index: 1;
+      }
+      .pe-chips-low {
+        top: calc(2 * var(--pe-cell-h) + var(--pe-gap) + 10px);
+      }
+      .pe-chip {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(20, 26, 32, 0.85);
+        color: #e8edf2;
+        border-radius: 16px;
+        padding: 3px 6px 3px 10px;
+        font-size: 12px;
+        max-width: 320px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+      }
+      .pe-chip-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: #29b6f6;
+      }
+      .pe-chip-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pe-chip-clear {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        background: rgba(255, 255, 255, 0.15);
+        color: #e8edf2;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        cursor: pointer;
+      }
+      .pe-chip-clear mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+      }
     `
   ]
 })
@@ -115,7 +191,7 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
     return result;
   });
 
-  private service = inject(PlotterExtensionService);
+  protected service = inject(PlotterExtensionService);
   private dialog = inject(MatDialog);
   private zone = inject(NgZone);
   private host = inject(ElementRef<HTMLElement>);
@@ -188,6 +264,10 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
       'grid-column': `${placed.col + 1} / span ${cols}`,
       'grid-row': `${placed.row + 1} / span ${rows}`
     };
+  }
+
+  clearChip(chip: { type: string; extension: string }) {
+    this.service.clearResourceFilter(chip.extension, chip.type);
   }
 
   // ---------- press-and-hold to add ----------
