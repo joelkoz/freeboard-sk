@@ -38,6 +38,7 @@ import {
 import {
   ANCHOR_COL_ORDER,
   ANCHOR_GRAVITY,
+  ANCHOR_GRID,
   AnchorId,
   ButtonContribution,
   HOST_API_VERSION,
@@ -429,18 +430,18 @@ export class PlotterExtensionService {
     return this.app.config.plotterExtensions.widgets;
   }
 
-  /** 2x2 occupancy map of an anchor area: occupied[row][col]. */
+  /** Occupancy map of an anchor area (sized per ANCHOR_GRID): occupied[row][col]. */
   private occupancy(anchor: AnchorId): boolean[][] {
-    const occupied = [
-      [false, false],
-      [false, false]
-    ];
+    const { cols, rows } = ANCHOR_GRID[anchor];
+    const occupied = Array.from({ length: rows }, () =>
+      Array.from({ length: cols }, () => false)
+    );
     for (const placed of this.placements()) {
       if (placed.anchor !== anchor) continue;
       const def = this.widgetDef(placed.extension, placed.widget);
       const size = parseSize(def?.size ?? '1x1');
-      for (let r = placed.row; r < placed.row + size.rows && r < 2; r++) {
-        for (let c = placed.col; c < placed.col + size.cols && c < 2; c++) {
+      for (let r = placed.row; r < placed.row + size.rows && r < rows; r++) {
+        for (let c = placed.col; c < placed.col + size.cols && c < cols; c++) {
           occupied[r][c] = true;
         }
       }
@@ -465,14 +466,17 @@ export class PlotterExtensionService {
     origin: { col: number; row: number },
     occupied: boolean[][]
   ): boolean {
-    if (origin.col + size.cols > 2 || origin.row + size.rows > 2) return false;
+    const { cols, rows } = ANCHOR_GRID[anchor];
+    if (origin.col + size.cols > cols || origin.row + size.rows > rows) {
+      return false;
+    }
     for (let r = origin.row; r < origin.row + size.rows; r++) {
       for (let c = origin.col; c < origin.col + size.cols; c++) {
         if (occupied[r][c]) return false;
       }
     }
     if (size.rows === 1) {
-      const gravityRow = ANCHOR_GRAVITY[anchor] === 'bottom' ? 1 : 0;
+      const gravityRow = ANCHOR_GRAVITY[anchor] === 'bottom' ? rows - 1 : 0;
       if (origin.row !== gravityRow) {
         // floating row: require support toward the gravity edge
         for (let c = origin.col; c < origin.col + size.cols; c++) {
@@ -485,7 +489,10 @@ export class PlotterExtensionService {
 
   /** Candidate origins for an anchor, most-preferred (gravity/corner) first. */
   private originOrder(anchor: AnchorId): Array<{ col: number; row: number }> {
-    const rows = ANCHOR_GRAVITY[anchor] === 'bottom' ? [1, 0] : [0, 1];
+    const rowCount = ANCHOR_GRID[anchor].rows;
+    const ascending = Array.from({ length: rowCount }, (_, i) => i);
+    const rows =
+      ANCHOR_GRAVITY[anchor] === 'bottom' ? [...ascending].reverse() : ascending;
     const cols = ANCHOR_COL_ORDER[anchor];
     const order: Array<{ col: number; row: number }> = [];
     for (const row of rows) {

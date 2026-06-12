@@ -21,7 +21,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { PlotterExtensionService } from './plotterext.service';
 import { PlotterWidgetFrame } from './widget-frame.component';
-import { ANCHORS, AnchorId, PlacedWidget, parseSize } from './types';
+import { ANCHOR_GRID, ANCHORS, AnchorId, PlacedWidget, parseSize } from './types';
 
 const HOLD_MS = 1500;
 const MOVE_SLOP_PX = 8;
@@ -85,7 +85,8 @@ interface CellStyle {
       .pe-anchor {
         position: absolute;
         display: grid;
-        grid-template-columns: repeat(2, var(--pe-cell-w));
+        /* grid-template-columns is set per-anchor (see anchorStyle) so corners
+           can be wider than the center anchors */
         grid-template-rows: repeat(2, var(--pe-cell-h));
         gap: var(--pe-gap);
         pointer-events: none;
@@ -227,8 +228,10 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
    * is centered as a whole.
    */
   anchorStyle(anchor: AnchorId): CellStyle {
-    if (anchor !== 'ct' && anchor !== 'cb') return {};
-    const style: CellStyle = {};
+    const style: CellStyle = {
+      'grid-template-columns': `repeat(${ANCHOR_GRID[anchor].cols}, var(--pe-cell-w))`
+    };
+    if (anchor !== 'ct' && anchor !== 'cb') return style;
     if (anchor === 'cb') {
       // sit flush on top of the Lat/Lon readout (OL mouse-position control)
       const bar = document.querySelector('.ol-mouse-position');
@@ -321,8 +324,15 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
         continue;
       }
       const anchor = (area as HTMLElement).dataset['anchor'] as AnchorId;
-      const col = x < rect.left + rect.width / 2 ? 0 : 1;
-      const row = y < rect.top + rect.height / 2 ? 0 : 1;
+      const { cols, rows } = ANCHOR_GRID[anchor];
+      const col = Math.min(
+        cols - 1,
+        Math.max(0, Math.floor(((x - rect.left) / rect.width) * cols))
+      );
+      const row = Math.min(
+        rows - 1,
+        Math.max(0, Math.floor(((y - rect.top) / rect.height) * rows))
+      );
       return { anchor, cell: { col, row } };
     }
     return null;

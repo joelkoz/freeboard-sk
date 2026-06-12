@@ -52,14 +52,40 @@ export const ANCHOR_GRAVITY: Record<AnchorId, 'top' | 'bottom'> = {
   br: 'bottom'
 };
 
-/** Preferred column fill order per anchor (toward the screen corner first). */
-export const ANCHOR_COL_ORDER: Record<AnchorId, number[]> = {
-  tr: [1, 0],
-  ct: [0, 1],
-  cb: [0, 1],
-  bl: [0, 1],
-  br: [1, 0]
+/**
+ * Per-anchor grid dimensions (cols x rows). Corners are 4 wide so up to eight
+ * 1x1 (or four 2x1) widgets can stack there; the center anchors stay 2 wide.
+ * Rows are 2 everywhere — widgets are never taller than the gravity stack.
+ */
+export const ANCHOR_GRID: Record<AnchorId, { cols: number; rows: number }> = {
+  tr: { cols: 4, rows: 2 },
+  ct: { cols: 2, rows: 2 },
+  cb: { cols: 2, rows: 2 },
+  bl: { cols: 4, rows: 2 },
+  br: { cols: 4, rows: 2 }
 };
+
+/** Horizontal packing direction per anchor (toward the screen corner first). */
+const ANCHOR_COL_FILL: Record<AnchorId, 'left' | 'right'> = {
+  tr: 'right',
+  ct: 'left',
+  cb: 'left',
+  bl: 'left',
+  br: 'right'
+};
+
+/**
+ * Preferred column fill order per anchor (toward the screen corner first),
+ * derived from the anchor's width and packing direction.
+ */
+export const ANCHOR_COL_ORDER: Record<AnchorId, number[]> = ANCHORS.reduce(
+  (acc, anchor) => {
+    const cols = Array.from({ length: ANCHOR_GRID[anchor].cols }, (_, i) => i);
+    acc[anchor] = ANCHOR_COL_FILL[anchor] === 'right' ? cols.reverse() : cols;
+    return acc;
+  },
+  {} as Record<AnchorId, number[]>
+);
 
 export interface WidgetContribution {
   id: string;
