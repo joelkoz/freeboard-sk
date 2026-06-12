@@ -10,6 +10,7 @@ import {
   OnInit,
   ViewChild,
   computed,
+  effect,
   inject,
   input
 } from '@angular/core';
@@ -78,11 +79,16 @@ export class PlotterPanelFrame implements OnInit, OnDestroy {
 @Component({
   selector: 'fb-plotterext-panel-drawer',
   imports: [MatButtonModule, MatIconModule, PlotterPanelFrame],
+  host: { '[class.pe-open]': 'isOpen()' },
+  // The drawer is an in-flow flex sibling of the map container (not an
+  // overlay): when open it widens and pushes the display to the left,
+  // mirroring Freeboard's instrument-app sidenav. Panels are kept mounted
+  // while hidden (keepAlive) — only the visible one is shown.
   template: `
-    @for (entry of service.openPanels(); track entry.key) {
-      <div class="pe-drawer" [class.pe-drawer-hidden]="!entry.visible">
+    <div class="pe-drawer-inner" (transitionend)="onTransitionEnd($event)">
+      @if (service.visiblePanel(); as v) {
         <div class="pe-drawer-head">
-          <span>{{ entry.panel.title }}</span>
+          <span>{{ v.panel.title }}</span>
           <button
             mat-icon-button
             (click)="service.closeVisiblePanel()"
@@ -91,33 +97,40 @@ export class PlotterPanelFrame implements OnInit, OnDestroy {
             <mat-icon>close</mat-icon>
           </button>
         </div>
-        <div class="pe-drawer-body">
-          <fb-plotterext-panel-frame
-            [extension]="entry.extension"
-            [panel]="entry.panel"
-          ></fb-plotterext-panel-frame>
-        </div>
+      }
+      <div class="pe-drawer-bodies">
+        @for (entry of service.openPanels(); track entry.key) {
+          <div class="pe-drawer-body" [class.pe-body-hidden]="!entry.visible">
+            <fb-plotterext-panel-frame
+              [extension]="entry.extension"
+              [panel]="entry.panel"
+            ></fb-plotterext-panel-frame>
+          </div>
+        }
       </div>
-    }
+    </div>
   `,
   styles: [
     `
-      .pe-drawer {
-        position: fixed;
-        top: 48px;
-        right: 0;
-        bottom: 0;
-        width: min(390px, 92vw);
-        z-index: 2500;
-        display: flex;
-        flex-direction: column;
+      :host {
+        flex: 0 0 auto;
+        height: 100%;
+        width: 0;
+        max-width: 92vw;
+        overflow: hidden;
         background: #1d242b;
         color: #e8edf2;
+      }
+      :host.pe-open {
+        width: 390px;
         box-shadow: -2px 0 8px rgba(0, 0, 0, 0.4);
       }
-      .pe-drawer-hidden {
-        visibility: hidden;
-        pointer-events: none;
+      .pe-drawer-inner {
+        width: 390px;
+        max-width: 92vw;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
       }
       .pe-drawer-head {
         display: flex;
@@ -128,13 +141,42 @@ export class PlotterPanelFrame implements OnInit, OnDestroy {
         border-bottom: 1px solid rgba(255, 255, 255, 0.12);
         flex: 0 0 auto;
       }
-      .pe-drawer-body {
+      .pe-drawer-bodies {
         flex: 1;
         min-height: 0;
+        position: relative;
+      }
+      .pe-drawer-body {
+        position: absolute;
+        inset: 0;
+      }
+      .pe-body-hidden {
+        visibility: hidden;
+        pointer-events: none;
       }
     `
   ]
 })
 export class PlotterPanelDrawer {
   protected service = inject(PlotterExtensionService);
+
+  // host width follows the open state (see host binding above)
+  protected isOpen = computed(() => !!this.service.visiblePanel());
+
+  constructor() {
+    // resize the OL map as the drawer width animates so the viewport tracks
+    let first = true;
+    effect(() => {
+      this.isOpen();
+      if (first) {
+        first = false;
+        return;
+      }
+      this.service.pulseMapResize();
+    });
+  }
+
+  onTransitionEnd(ev: TransitionEvent) {
+    if (ev.propertyName === 'width') this.service.pulseMapResize(80);
+  }
 }

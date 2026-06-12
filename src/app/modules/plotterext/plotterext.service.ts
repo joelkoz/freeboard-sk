@@ -21,7 +21,7 @@ import { Injectable, computed, isDevMode, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { SignalKClient } from 'signalk-client-angular';
-import { fromLonLat, toLonLat, transformExtent } from 'ol/proj';
+import { transformExtent } from 'ol/proj';
 
 import { AppFacade } from 'src/app/app.facade';
 import { SKResourceService } from 'src/app/modules/skresources/resources.service';
@@ -904,26 +904,21 @@ export class PlotterExtensionService {
   }
 
   // ---------- map host API ----------
-
-  private olView() {
-    const map = this.mapService.getMaps()[0];
-    return map ? { map, view: map.getView() } : null;
-  }
+  //
+  // Map moves are routed through the host's own centering path
+  // (AppFacade.mapMoveRequest -> AppComponent effect -> centerAndZoom), not
+  // by reaching into the OpenLayers view directly. Driving the OL view
+  // directly bypasses Freeboard's mapCenter/mapZoom signal flow, so chart
+  // and resource layers do not refresh after the move.
 
   private mapMethods(): Record<string, MethodHandler> {
     return {
       'map.getView': async () => {
-        const ctx = this.olView();
-        if (!ctx) {
-          throw new RpcError('Map not available', { reason: 'NO_MAP' });
-        }
-        const center = toLonLat(ctx.view.getCenter() ?? [0, 0]);
-        const bounds = transformExtent(
-          ctx.view.calculateExtent(ctx.map.getSize()),
-          'EPSG:3857',
-          'EPSG:4326'
-        );
-        return { center, zoom: ctx.view.getZoom(), bounds };
+        return {
+          center: this.app.config.map.center,
+          zoom: this.app.config.map.zoomLevel,
+          bounds: this.app.mapExtent()
+        };
       },
       'map.center': async (params) => {
         const { position, zoom } = (params ?? {}) as {
@@ -940,14 +935,9 @@ export class PlotterExtensionService {
             reason: 'INVALID_POSITION'
           });
         }
-        const ctx = this.olView();
-        if (!ctx) {
-          throw new RpcError('Map not available', { reason: 'NO_MAP' });
-        }
-        ctx.view.animate({
-          center: fromLonLat(position),
-          ...(typeof zoom === 'number' ? { zoom } : {}),
-          duration: 500
+        this.app.mapMoveRequest.set({
+          center: position as [number, number],
+          ...(typeof zoom === 'number' ? { zoom } : {})
         });
         return {};
       },
@@ -963,18 +953,51 @@ export class PlotterExtensionService {
             { code: RPC_ERRORS.INVALID_PARAMS, reason: 'INVALID_BOUNDS' }
           );
         }
-        const ctx = this.olView();
-        if (!ctx) {
-          throw new RpcError('Map not available', { reason: 'NO_MAP' });
-        }
-        ctx.view.fit(transformExtent(bounds, 'EPSG:4326', 'EPSG:3857'), {
-          padding: [70, 70, 70, 70],
-          maxZoom: 16,
-          duration: 500
+        const [minLon, minLat, maxLon, maxLat] = bounds as number[];
+        const center: [number, number] = [
+          (minLon + maxLon) / 2,
+          (minLat + maxLat) / 2
+        ];
+        this.app.mapMoveRequest.set({
+          center,
+          zoom: this.zoomForBounds(bounds as number[])
         });
         return {};
       }
     };
+  }
+
+  /**
+   * Compute a zoom level that frames a lon/lat bounding box in the current
+   * viewport (read-only use of the OL view). Falls back to a reasonable
+   * zoom when the map is unavailable.
+   */
+  private zoomForBounds(bounds: number[]): number {
+    const map = this.mapService.getMaps()[0];
+    const size = map?.getSize();
+    if (!map || !size) return 12;
+    const view = map.getView();
+    const ext = transformExtent(bounds, 'EPSG:4326', 'EPSG:3857');
+    // pad by shrinking the usable size ~15% so markers aren't at the edge
+    const padded: [number, number] = [size[0] * 0.85, size[1] * 0.85];
+    const resolution = view.getResolutionForExtent(ext, padded);
+    const zoom = view.getZoomForResolution(resolution) ?? 12;
+    const maxZoom = this.app.MAP_ZOOM_EXTENT?.max ?? 18;
+    return Math.min(zoom, maxZoom);
+  }
+
+  /**
+   * Pulse OL map.updateSize() across a layout transition (the panel drawer
+   * push), so the map tracks the changing container width smoothly.
+   */
+  pulseMapResize(durationMs = 320) {
+    let elapsed = 0;
+    const step = () => {
+      this.mapService.updateSize();
+      elapsed += 16;
+      if (elapsed < durationMs) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   // ---------- unit preferences ----------

@@ -294,6 +294,14 @@ export class AppComponent {
       this.app.uiConfig();
       this.handleSettingChangeEvent(undefined);
     });
+    // apply programmatic map move requests (e.g. from plotter extensions)
+    // through Freeboard's own centering path so chart layers refresh.
+    effect(() => {
+      const req = this.app.mapMoveRequest();
+      if (req) {
+        this.centerAndZoom(req.center, req.zoom);
+      }
+    });
   }
 
   // ********* LIFECYCLE ****************

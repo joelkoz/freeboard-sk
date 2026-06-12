@@ -274,7 +274,7 @@
 
     <!-- content -->
     <div class="view" theme-main>
-      <mat-sidenav-container hasBackdrop="false">
+      <mat-sidenav-container hasBackdrop="false" class="pe-view-main">
         <!--info-panel-->
         <mat-sidenav
           #sideright
@@ -996,9 +996,6 @@
           <!-- Plotter extension widget overlay -->
           <fb-plotterext-overlay></fb-plotterext-overlay>
 
-          <!-- Plotter extension panel drawer -->
-          <fb-plotterext-panel-drawer></fb-plotterext-panel-drawer>
-
           <!-- North Arrow -->
           <div style="position: absolute; top: 60px; left: 56px; width: 50px">
             <img
@@ -1213,6 +1210,9 @@
           }
         </mat-sidenav-content>
       </mat-sidenav-container>
+
+      <!-- Plotter extension panel drawer: pushes the display left when open -->
+      <fb-plotterext-panel-drawer></fb-plotterext-panel-drawer>
     </div>
     <!-- /content -->
   </div>
