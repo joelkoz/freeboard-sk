@@ -921,5 +921,16 @@
         <span>Get Feature Info</span>
       </button>
     }
+    @if (addableWidgetCell) {
+      <mat-divider></mat-divider>
+      <button
+        mat-menu-item
+        (click)="onContextMenuAction('add_widget', item)"
+        (contextmenu)="$event.preventDefault()"
+      >
+        <mat-icon>widgets</mat-icon>
+        Add widget here
+      </button>
+    }
   </ng-template>
 </mat-menu>

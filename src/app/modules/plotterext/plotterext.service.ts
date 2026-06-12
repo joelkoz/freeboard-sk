@@ -696,6 +696,79 @@ export class PlotterExtensionService {
     return result;
   }
 
+  // Screen-coordinate hit testing is owned by the overlay (it has the anchor
+  // DOM). The overlay registers its tester here so other entry points — the
+  // desktop right-click menu — can resolve a point to an anchor cell without a
+  // direct component reference.
+  private hitTester:
+    | ((
+        x: number,
+        y: number
+      ) => { anchor: AnchorId; cell: { col: number; row: number } } | null)
+    | null = null;
+
+  registerHitTester(
+    fn: (
+      x: number,
+      y: number
+    ) => { anchor: AnchorId; cell: { col: number; row: number } } | null
+  ): () => void {
+    this.hitTester = fn;
+    return () => {
+      if (this.hitTester === fn) this.hitTester = null;
+    };
+  }
+
+  /**
+   * Resolve screen coordinates to an EMPTY anchor cell that can accept at least
+   * one widget, or null. Used to gate and trigger the right-click "Add widget
+   * here" menu item.
+   */
+  addableCellAt(
+    x: number,
+    y: number
+  ): { anchor: AnchorId; cell: { col: number; row: number } } | null {
+    const hit = this.hitTester?.(x, y);
+    if (!hit) return null;
+    if (this.cellOccupied(hit.anchor, hit.cell)) return null;
+    if (!this.addableWidgets(hit.anchor, hit.cell).length) return null;
+    return hit;
+  }
+
+  /**
+   * Open the Add Widget picker for an empty anchor cell. Shared by the
+   * press-and-hold gesture (touch) and the right-click menu (desktop); on a
+   * choice it places the widget and opens its config panel if it has one.
+   */
+  async openAddWidgetPicker(
+    anchor: AnchorId,
+    cell: { col: number; row: number }
+  ) {
+    const candidates = this.addableWidgets(anchor, cell);
+    if (!candidates.length) return;
+    const { PlotterAddWidgetDialog } = await import(
+      './add-widget-dialog.component'
+    );
+    this.dialog
+      .open(PlotterAddWidgetDialog, {
+        data: { anchor, candidates },
+        width: '340px'
+      })
+      .afterClosed()
+      .subscribe((choice) => {
+        if (!choice) return;
+        const placed = this.placeWidget(
+          choice.extension,
+          choice.widget,
+          anchor,
+          choice.origin
+        );
+        if (this.widgetHasConfigPanel(placed)) {
+          this.openConfigPanel(placed);
+        }
+      });
+  }
+
   /** Place a widget at a previously computed origin (see addableWidgets). */
   placeWidget(
     extension: string,

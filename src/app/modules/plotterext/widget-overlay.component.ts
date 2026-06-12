@@ -17,7 +17,6 @@ import {
   computed,
   inject
 } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { PlotterExtensionService } from './plotterext.service';
 import { PlotterWidgetFrame } from './widget-frame.component';
@@ -196,7 +195,6 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
   });
 
   protected service = inject(PlotterExtensionService);
-  private dialog = inject(MatDialog);
   private zone = inject(NgZone);
   private host = inject(ElementRef<HTMLElement>);
 
@@ -205,8 +203,14 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
   private onPointerDown = (e: PointerEvent) => this.pointerDown(e);
   private onPointerMove = (e: PointerEvent) => this.pointerMove(e);
   private onPointerEnd = () => this.cancelHold();
+  private unregisterHitTester: (() => void) | null = null;
 
   ngOnInit() {
+    // Expose this overlay's screen->cell hit test to the host service so the
+    // desktop right-click menu can resolve a point to an anchor cell.
+    this.unregisterHitTester = this.service.registerHitTester((x, y) =>
+      this.hitTest(x, y)
+    );
     // Outside Angular: these fire for every map interaction.
     this.zone.runOutsideAngular(() => {
       document.addEventListener('pointerdown', this.onPointerDown, true);
@@ -218,6 +222,8 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.cancelHold();
+    this.unregisterHitTester?.();
+    this.unregisterHitTester = null;
     document.removeEventListener('pointerdown', this.onPointerDown, true);
     document.removeEventListener('pointermove', this.onPointerMove, true);
     document.removeEventListener('pointerup', this.onPointerEnd, true);
@@ -287,7 +293,9 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
     this.downPoint = { x: e.clientX, y: e.clientY };
     this.holdTimer = setTimeout(() => {
       this.holdTimer = null;
-      this.zone.run(() => this.openAddPicker(hit.anchor, hit.cell));
+      this.zone.run(() =>
+        this.service.openAddWidgetPicker(hit.anchor, hit.cell)
+      );
     }, HOLD_MS);
   }
 
@@ -329,37 +337,5 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
       return { anchor, cell: { col, row } };
     }
     return null;
-  }
-
-  private async openAddPicker(
-    anchor: AnchorId,
-    cell: { col: number; row: number }
-  ) {
-    const candidates = this.service.addableWidgets(anchor, cell);
-    if (!candidates.length) return;
-    const { PlotterAddWidgetDialog } = await import(
-      './add-widget-dialog.component'
-    );
-    this.dialog
-      .open(PlotterAddWidgetDialog, {
-        data: { anchor, candidates },
-        width: '340px'
-      })
-      .afterClosed()
-      .subscribe((choice) => {
-        if (!choice) return;
-        const placed = this.service.placeWidget(
-          choice.extension,
-          choice.widget,
-          anchor,
-          choice.origin
-        );
-        // Auto-open configuration only for widgets that have settings; a
-        // settings-less widget would otherwise show an empty config dialog
-        // right after placement.
-        if (this.service.widgetHasConfigPanel(placed)) {
-          this.service.openConfigPanel(placed);
-        }
-      });
   }
 }
