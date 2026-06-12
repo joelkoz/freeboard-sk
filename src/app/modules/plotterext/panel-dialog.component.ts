@@ -22,7 +22,10 @@ import { PanelContribution } from './types';
 
 export interface PlotterPanelDialogData {
   extension: string;
-  panel: PanelContribution;
+  /** The configuration panel, or null for a widget with no settings. */
+  panel: PanelContribution | null;
+  /** Title shown when there is no panel (e.g. the widget name). */
+  title?: string;
   targetInstance?: string | null;
   targetWidget?: string | null;
 }
@@ -32,19 +35,25 @@ export interface PlotterPanelDialogData {
   imports: [MatDialogModule, MatButtonModule, MatIconModule],
   template: `
     <div class="pe-panel-header" mat-dialog-title>
-      <span>{{ data.panel.title }}</span>
+      <span>{{ data.panel ? data.panel.title : data.title }}</span>
       <button mat-icon-button (click)="dialogRef.close()" aria-label="Close">
         <mat-icon>close</mat-icon>
       </button>
     </div>
-    <mat-dialog-content class="pe-panel-content">
-      <iframe
-        #frame
-        [src]="url"
-        sandbox="allow-scripts allow-same-origin allow-forms"
-        [title]="data.panel.title"
-      ></iframe>
-    </mat-dialog-content>
+    @if (data.panel) {
+      <mat-dialog-content class="pe-panel-content">
+        <iframe
+          #frame
+          [src]="url"
+          sandbox="allow-scripts allow-same-origin allow-forms"
+          [title]="data.panel.title"
+        ></iframe>
+      </mat-dialog-content>
+    } @else {
+      <mat-dialog-content class="pe-panel-noconfig">
+        This widget has no settings.
+      </mat-dialog-content>
+    }
     @if (data.targetInstance) {
       <mat-dialog-actions class="pe-panel-actions">
         <button mat-button class="pe-remove" (click)="removeWidget()">
@@ -65,6 +74,10 @@ export interface PlotterPanelDialogData {
         padding: 0;
         height: 60vh;
       }
+      .pe-panel-noconfig {
+        padding: 16px 24px;
+        color: rgba(0, 0, 0, 0.6);
+      }
       iframe {
         display: block;
         width: 100%;
@@ -81,8 +94,8 @@ export interface PlotterPanelDialogData {
   ]
 })
 export class PlotterPanelDialog implements OnInit, OnDestroy {
-  @ViewChild('frame', { static: true })
-  frame: ElementRef<HTMLIFrameElement>;
+  @ViewChild('frame')
+  frame?: ElementRef<HTMLIFrameElement>;
 
   url: SafeResourceUrl;
   private detach: (() => void) | null = null;
@@ -95,14 +108,15 @@ export class PlotterPanelDialog implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
+    // No panel -> a settings-less widget; the dialog only offers Remove.
+    if (!this.data.panel || !this.frame) return;
+    const panel = this.data.panel;
     this.url = this.sanitizer.bypassSecurityTrustResourceUrl(
-      this.data.panel.url
-        ? this.service.resolveAssetUrl(this.data.panel.url)
-        : 'about:blank'
+      panel.url ? this.service.resolveAssetUrl(panel.url) : 'about:blank'
     );
     this.detach = this.service.attachPanel(this.frame.nativeElement, {
       extension: this.data.extension,
-      panel: this.data.panel,
+      panel,
       targetInstance: this.data.targetInstance,
       targetWidget: this.data.targetWidget,
       close: () => this.dialogRef.close()

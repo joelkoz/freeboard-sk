@@ -748,17 +748,18 @@ export class PlotterExtensionService {
   openConfigPanel(placed: PlacedWidget) {
     const manifest = this.manifests()[placed.extension];
     const widget = this.widgetDef(placed.extension, placed.widget);
-    const panel = manifest?.panels?.find((p) => p.id === widget?.configPanel);
-    if (!panel || panel.type !== 'iframe' || !panel.url) {
-      this.app.showMessage('This widget has no configuration panel.');
-      return;
-    }
+    const found = manifest?.panels?.find((p) => p.id === widget?.configPanel);
+    // A widget with no usable config panel still gets a dialog so it can be
+    // removed (long-press affordance applies to every placed widget).
+    const panel =
+      found && found.type === 'iframe' && found.url ? found : null;
     // Deferred import avoids a service->component->service import cycle.
     import('./panel-dialog.component').then(({ PlotterPanelDialog }) => {
       const ref = this.dialog.open(PlotterPanelDialog, {
         data: {
           extension: placed.extension,
           panel,
+          title: widget?.title ?? placed.widget,
           targetInstance: placed.instanceId,
           targetWidget: placed.widget
         },
