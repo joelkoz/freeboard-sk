@@ -759,7 +759,10 @@
 
             <!-- right button bar -->
             <!-- show/hide  -->
-            <div class="rightTop buttonPanel">
+            <div
+              class="rightTop buttonPanel"
+              [style.top.px]="plotterExt.toolbarTopOffset()"
+            >
               <div class="buttonPanelItem">
                 <button
                   class="button-secondary"
@@ -779,7 +782,10 @@
               </div>
             </div>
             @if (app.uiConfig().toolbarButtons) {
-              <div class="buttonPanel right">
+              <div
+                class="buttonPanel right"
+                [style.top.px]="60 + plotterExt.toolbarTopOffset()"
+              >
                 <!-- instrument sidebar open button -->
                 <div class="instrumentPanelToggle buttonPanelItem">
                   @if (

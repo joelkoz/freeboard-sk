@@ -94,7 +94,14 @@
   <!-- Cursor position control -->
   <ol-control>
     <ol-content>
-      <div class="ol-mouse-position">
+      <div
+        class="ol-mouse-position"
+        [style.bottom]="
+          plotterExt.statusBarLift() > 0
+            ? plotterExt.statusBarLift() + 'px'
+            : null
+        "
+      >
         <span
           style="
             background-color: rgba(250, 250, 250, 0.7);

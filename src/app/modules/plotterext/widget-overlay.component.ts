@@ -94,7 +94,9 @@ interface CellStyle {
       /* corner areas sit flush against the screen sides; vertical offsets
          keep clear of Freeboard's top icon row and bottom status bar */
       .pe-tr {
-        top: 60px;
+        /* flush against the screen top; the right-hand toolbar pushes down to
+           sit below this widget stack (see toolbarTopOffset) */
+        top: 0;
         right: 0;
       }
       .pe-ct {
@@ -103,8 +105,9 @@ interface CellStyle {
         transform: translateX(calc(-50% + var(--pe-center-shift, 0px)));
       }
       .pe-cb {
-        /* flush against the top of the Lat/Lon status bar */
-        bottom: var(--pe-statusbar-h, 24px);
+        /* flush against the screen bottom; the Lat/Lon status bar lifts to
+           sit above this widget stack (see statusBarLift) */
+        bottom: 0;
         left: 50%;
         transform: translateX(calc(-50% + var(--pe-center-shift, 0px)));
       }
@@ -232,16 +235,6 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
       'grid-template-columns': `repeat(${ANCHOR_GRID[anchor].cols}, var(--pe-cell-w))`
     };
     if (anchor !== 'ct' && anchor !== 'cb') return style;
-    if (anchor === 'cb') {
-      // sit flush on top of the Lat/Lon readout (OL mouse-position control)
-      const bar = document.querySelector('.ol-mouse-position');
-      if (bar) {
-        const top = bar.getBoundingClientRect().top;
-        if (top > 0) {
-          style['--pe-statusbar-h'] = `${Math.ceil(window.innerHeight - top)}px`;
-        }
-      }
-    }
     const used = new Set<number>();
     for (const placed of this.byAnchor()[anchor] ?? []) {
       const def = this.service.widgetDef(placed.extension, placed.widget);
