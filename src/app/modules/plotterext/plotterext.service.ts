@@ -272,7 +272,10 @@ export class PlotterExtensionService {
       ...all,
       [type]: { ...(all[type] ?? {}), [extension]: filter }
     }));
-    this.publishToExtension(extension, 'filters.changed', { type });
+    this.publishToExtension(extension, 'filters.changed', {
+      type,
+      active: true
+    });
   }
 
   clearResourceFilter(extension: string, type: string) {
@@ -287,7 +290,10 @@ export class PlotterExtensionService {
       }
       return next;
     });
-    this.publishToExtension(extension, 'filters.changed', { type });
+    this.publishToExtension(extension, 'filters.changed', {
+      type,
+      active: false
+    });
   }
 
   private passesFilter(
