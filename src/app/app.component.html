@@ -708,7 +708,10 @@
             }
 
             <!-- Status Bar -->
-            <div class="statusBar">
+            <div
+              class="statusBar"
+              [style.top.px]="20 + plotterExt.toolbarTopOffset()"
+            >
               @if (!wakeLock.enabled() && wakeLock.isAvailable) {
                 <div class="statusBarItem">
                   <mat-icon
