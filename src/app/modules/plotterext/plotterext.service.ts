@@ -40,6 +40,7 @@ import {
   ANCHOR_GRAVITY,
   ANCHOR_GRID,
   AnchorId,
+  BackgroundContribution,
   ButtonContribution,
   HOST_API_VERSION,
   HOST_CAPABILITIES,
@@ -138,6 +139,41 @@ export class PlotterExtensionService {
           continue;
         }
         result.push({ extension, extensionName: manifest.name, button });
+      }
+    }
+    return result;
+  });
+
+  /**
+   * Headless background runtimes contributed by compatible extensions. Drives
+   * the always-mounted runtime host: a hidden iframe per entry, loaded while
+   * the extension is present in the collection and torn down when it leaves
+   * (the providing plugin was disabled). `key` is stable per (extension,
+   * runtime) so Angular's @for keeps the iframe across unrelated changes.
+   */
+  readonly backgroundRuntimes = computed(() => {
+    const result: Array<{
+      key: string;
+      extension: string;
+      extensionName: string;
+      runtime: BackgroundContribution;
+    }> = [];
+    for (const [extension, manifest] of Object.entries(this.manifests())) {
+      if (!this.isCompatible(manifest)) continue;
+      for (const runtime of manifest.background ?? []) {
+        if (
+          runtime.apiVersion !== undefined &&
+          runtime.apiVersion !== HOST_API_VERSION
+        ) {
+          continue;
+        }
+        if (runtime.type !== 'iframe' || !runtime.url) continue;
+        result.push({
+          key: `${extension}/${runtime.id}`,
+          extension,
+          extensionName: manifest.name,
+          runtime
+        });
       }
     }
     return result;
@@ -244,11 +280,21 @@ export class PlotterExtensionService {
   }
 
   handleButtonAction(extension: string, button: ButtonContribution) {
-    const panel = button.action?.panel;
+    const action = button.action;
+    if (!action) return;
+    if (action.type === 'sendMessage') {
+      // Fire-and-forget: publish a custom event onto the bus. Delivery is
+      // subscription-gated (publish() only reaches contexts that subscribed
+      // to the topic), so this reaches the extension's own background runtime
+      // and, by convention with a shared topic, other extensions too.
+      if (action.topic) this.broadcastMessage(action.topic, action.params);
+      return;
+    }
+    const panel = action.panel;
     if (!panel) return;
-    if (button.action?.type === 'togglePanel') {
+    if (action.type === 'togglePanel') {
       this.togglePanel(extension, panel);
-    } else if (button.action?.type === 'openPanel') {
+    } else if (action.type === 'openPanel') {
       this.openPanel(extension, panel);
     }
   }
@@ -358,9 +404,9 @@ export class PlotterExtensionService {
       case 'exists':
         return value !== undefined;
       case 'eq':
-        return value === cond.value;
+        return this.refEquals(value, cond.value, cond.exact);
       case 'ne':
-        return value !== cond.value;
+        return !this.refEquals(value, cond.value, cond.exact);
       case 'lt':
         return typeof value === 'number' && value < (cond.value as number);
       case 'lte':
@@ -370,7 +416,10 @@ export class PlotterExtensionService {
       case 'gte':
         return typeof value === 'number' && value >= (cond.value as number);
       case 'in':
-        return Array.isArray(cond.value) && cond.value.includes(value);
+        return (
+          Array.isArray(cond.value) &&
+          cond.value.some((v) => this.refEquals(value, v, cond.exact))
+        );
       case 'contains':
         if (typeof value === 'string') {
           return value
@@ -378,8 +427,60 @@ export class PlotterExtensionService {
             .includes(String(cond.value).toLowerCase());
         }
         return Array.isArray(value) && value.includes(cond.value);
+      case 'regex': {
+        if (typeof value !== 'string' || typeof cond.value !== 'string') {
+          return false;
+        }
+        const re = this.compileRegex(cond.value);
+        return re ? re.test(value) : false;
+      }
       default:
         return false;
+    }
+  }
+
+  /**
+   * Local id of a symbol-style `namespace:id` reference, or null when the
+   * value is not one. The grammar follows the Symbols API alias form: a
+   * single colon, `namespace` matching `[A-Za-z0-9_-]+`, and an `id` with no
+   * further colon. Multi-colon strings (e.g. `urn:mrn:...`) are NOT symbol
+   * references and return null, so URN-like fields keep exact-match semantics.
+   */
+  private symbolLocalId(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const m = /^[A-Za-z0-9_-]+:([^:]+)$/.exec(value);
+    return m ? m[1] : null;
+  }
+
+  /**
+   * Equality used by eq/ne/in. Exact match first; then namespace-tolerant
+   * matching for symbol references so a filter written against a bare symbol
+   * id (`anchorage`) still matches once the host has persisted a
+   * fully-qualified alias (`default:anchorage`), and vice versa. Differing
+   * namespaces (`custom:x` vs `fsk:x`) never match. Only single-colon
+   * `namespace:id` values participate; everything else compares strictly.
+   * `exact` opts out of the tolerance and compares strictly.
+   */
+  private refEquals(stored: unknown, target: unknown, exact?: boolean): boolean {
+    if (stored === target) return true;
+    if (exact) return false;
+    // bare target id vs qualified stored reference
+    if (typeof target === 'string' && !target.includes(':')) {
+      if (this.symbolLocalId(stored) === target) return true;
+    }
+    // qualified target reference vs bare stored id
+    if (typeof stored === 'string' && !stored.includes(':')) {
+      if (this.symbolLocalId(target) === stored) return true;
+    }
+    return false;
+  }
+
+  /** Compile a filter regex; invalid patterns make the condition false. */
+  private compileRegex(pattern: string): RegExp | null {
+    try {
+      return new RegExp(pattern);
+    } catch {
+      return null;
     }
   }
 
@@ -761,6 +862,46 @@ export class PlotterExtensionService {
     return () => this.detach(ctx);
   }
 
+  /**
+   * Attach a headless background-runtime iframe. No UI: same host API surface
+   * as a panel minus the panel/config-only methods (no ui.closePanel /
+   * ui.*ConfigPanel). State defaults to the extension scope (no instance).
+   * Returns a detach function called when the runtime leaves the collection.
+   */
+  attachBackground(
+    iframe: HTMLIFrameElement,
+    opts: { extension: string; runtime: BackgroundContribution }
+  ): () => void {
+    const ctx: LiveContext = {
+      extension: opts.extension,
+      conn: null as unknown as HostConnection,
+      skSubs: new Map(),
+      skSubSeq: 0
+    };
+    ctx.conn = new HostConnection({
+      port: windowPort(iframe.contentWindow as Window, {
+        origin: this.assetOrigin(opts.runtime.url)
+      }),
+      hostInfo: this.hostInfo(),
+      context: {
+        kind: 'background',
+        id: opts.runtime.id,
+        instanceId: null
+      },
+      methods: {
+        ...this.stateMethods(opts.extension, null),
+        ...this.signalkMethods(ctx),
+        ...this.unitsMethods(),
+        ...this.resourcesMethods(opts.extension),
+        ...this.mapMethods(),
+        ...this.uiPanelMethods(opts.extension)
+      },
+      onError: (err) => console.warn('plotterext background error', err)
+    });
+    this.contexts.add(ctx);
+    return () => this.detach(ctx);
+  }
+
   private detach(ctx: LiveContext) {
     if (!this.contexts.has(ctx)) return;
     this.contexts.delete(ctx);
@@ -934,6 +1075,20 @@ export class PlotterExtensionService {
       if (ctx.extension === extension) {
         ctx.conn.publish(event, params);
       }
+    }
+  }
+
+  /**
+   * Broadcast a custom event to every live extension context (any extension).
+   * Like publishToExtension, delivery is subscription-gated — publish() only
+   * reaches a context that subscribed to the topic — so this is a shared,
+   * opt-in message bus, not a spam channel. Used by `sendMessage` buttons; the
+   * cross-extension reach is what lets a federation of plugins talk over
+   * namespaced topics.
+   */
+  private broadcastMessage(event: string, params: unknown) {
+    for (const ctx of this.contexts) {
+      ctx.conn.publish(event, params);
     }
   }
 

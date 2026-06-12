@@ -18,6 +18,7 @@ export const HOST_CAPABILITIES = [
   'map',
   'resources',
   'resources.filter',
+  'background.iframe',
   'ui'
 ];
 
@@ -105,14 +106,37 @@ export interface ButtonContribution {
   /** Material icon name rendered by this host (generic `symbol` refs TBD). */
   icon?: string;
   symbol?: string;
-  action?: { type: string; panel?: string };
+  /**
+   * Button action. `openPanel`/`togglePanel` target a `panel` from the same
+   * manifest. `sendMessage` publishes `topic` (with optional `params`) onto
+   * the host message bus, delivered to every live extension context
+   * subscribed to that topic (typically the extension's own background
+   * runtime).
+   */
+  action?: { type: string; panel?: string; topic?: string; params?: unknown };
   apiVersion?: string;
 }
 
 export interface ResourceFilterCondition {
   path: string;
-  op: 'eq' | 'ne' | 'lt' | 'lte' | 'gt' | 'gte' | 'in' | 'contains' | 'exists';
+  op:
+    | 'eq'
+    | 'ne'
+    | 'lt'
+    | 'lte'
+    | 'gt'
+    | 'gte'
+    | 'in'
+    | 'contains'
+    | 'regex'
+    | 'exists';
   value?: unknown;
+  /**
+   * For eq/ne/in: when true, compare strictly and skip the namespace-tolerant
+   * symbol-reference matching (so `anchorage` will NOT match `default:anchorage`).
+   * Absent/false keeps the tolerant default. Ignored by other ops.
+   */
+  exact?: boolean;
 }
 
 export interface ResourceFilterSpec {
@@ -120,6 +144,21 @@ export interface ResourceFilterSpec {
   ids?: string[];
   match?: ResourceFilterCondition[];
   label?: string;
+}
+
+/**
+ * A headless background runtime: a hidden iframe loaded while the extension is
+ * present, with no UI. It runs the same bus client as widgets/panels and may
+ * call the host API (state, signalk, resources, filters, map), letting a panel
+ * close itself while a client-side service keeps state and work alive.
+ */
+export interface BackgroundContribution {
+  id: string;
+  title?: string;
+  type: 'iframe';
+  url: string;
+  lifecycle?: string;
+  apiVersion?: string;
 }
 
 export interface PanelContribution {
@@ -143,6 +182,7 @@ export interface PlotterExtensionManifest {
   widgets?: WidgetContribution[];
   panels?: PanelContribution[];
   buttons?: ButtonContribution[];
+  background?: BackgroundContribution[];
   // Future contribution sections (buttons, background, resourceFilters) are
   // tolerated but not consumed by this build.
   [key: string]: unknown;

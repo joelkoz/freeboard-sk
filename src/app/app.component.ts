@@ -108,6 +108,7 @@ import {
 import { RadarAPIService } from './modules/radar/radar-api.service';
 import { PlotterExtensionService } from './modules/plotterext/plotterext.service';
 import { PlotterExtensionOverlay } from './modules/plotterext/widget-overlay.component';
+import { PlotterBackgroundHost } from './modules/plotterext/background-runtime.component';
 import { PlotterPanelDrawer } from './modules/plotterext/panel-drawer.component';
 import {
   RoutePanel,
@@ -170,6 +171,7 @@ interface DrawEndEvent {
     WaypointPanel,
     RoutePanel,
     PlotterExtensionOverlay,
+    PlotterBackgroundHost,
     PlotterPanelDrawer
   ]
 })
