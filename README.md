@@ -138,7 +138,7 @@ If you have installed any plugins on your Signal K server that provide screen wi
 
 Widgets sit in the corners and at the centre of the top and bottom edges of the screen _(the top-left corner is reserved for Freeboard's own menu)_.
 
-![widgets](https://raw.githubusercontent.com/joelkoz/signalk-instrument-widgets/refs/heads/main/assets/freeboard-widget-screenshot.png)
+![widgets](https://raw.githubusercontent.com/joelkoz/signalk-instrument-widgets/refs/heads/main/docs/screenshots/1_freeboard-widget.png)
 
 **To add a widget**, press and hold an empty spot in any of these areas for at least 1.5 seconds (or right-click if you are using a mouse and keyboard). A short list of the widgets that fit there appears — choose one and it is added to your screen. As you add more, widgets stack neatly from the edge inward.
 
