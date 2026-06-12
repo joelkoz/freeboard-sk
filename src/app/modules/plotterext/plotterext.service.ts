@@ -6,7 +6,8 @@
 //   - widget placement persisted in app config (anchor areas, gravity packing)
 //   - one HostConnection (signalk-plotterext-bus) per live iframe context
 //   - host API methods: state.get/set, signalk.subscribe/unsubscribe/put,
-//     ui.openConfigPanel, ui.closePanel
+//     ui.openPanel/togglePanel, ui.openConfigPanel/toggleConfigPanel,
+//     ui.closePanel
 //   - a single multiplexed delta WebSocket relaying subscribed Signal K paths
 //     to widget contexts as sk.<path> events
 //
@@ -18,7 +19,7 @@
 // Map/resource host APIs (buttons, filters, map.*) belong to phase 3.
 
 import { Injectable, computed, isDevMode, signal } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { SignalKClient } from 'signalk-client-angular';
 import { transformExtent } from 'ol/proj';
@@ -163,9 +164,63 @@ export class PlotterExtensionService {
     });
   }
 
+  /**
+   * Toggle a drawer panel: if it is the currently visible panel, close it;
+   * otherwise open (or switch to) it. Mirrors Freeboard's instrument-panel
+   * button behavior.
+   */
+  togglePanel(extension: string, panelId: string): boolean {
+    const key = `${extension}/${panelId}`;
+    if (this.visiblePanel()?.key === key) {
+      this.closeVisiblePanel();
+      return true;
+    }
+    return this.openPanel(extension, panelId);
+  }
+
+  /** `ui.openPanel` / `ui.togglePanel` for an extension context. */
+  private uiPanelMethods(extension: string): Record<string, MethodHandler> {
+    const requirePanel = (params: unknown): string => {
+      const panel = (params as { panel?: string } | undefined)?.panel;
+      if (!panel) {
+        throw new RpcError('panel is required', {
+          code: RPC_ERRORS.INVALID_PARAMS,
+          reason: 'UNKNOWN_PANEL'
+        });
+      }
+      return panel;
+    };
+    return {
+      'ui.openPanel': async (params) => {
+        const panel = requirePanel(params);
+        if (!this.openPanel(extension, panel)) {
+          throw new RpcError(`No such panel: ${panel}`, {
+            code: RPC_ERRORS.INVALID_PARAMS,
+            reason: 'UNKNOWN_PANEL'
+          });
+        }
+        return {};
+      },
+      'ui.togglePanel': async (params) => {
+        const panel = requirePanel(params);
+        if (!this.togglePanel(extension, panel)) {
+          throw new RpcError(`No such panel: ${panel}`, {
+            code: RPC_ERRORS.INVALID_PARAMS,
+            reason: 'UNKNOWN_PANEL'
+          });
+        }
+        return {};
+      }
+    };
+  }
+
   handleButtonAction(extension: string, button: ButtonContribution) {
-    if (button.action?.type === 'openPanel' && button.action.panel) {
-      this.openPanel(extension, button.action.panel);
+    const panel = button.action?.panel;
+    if (!panel) return;
+    if (button.action?.type === 'togglePanel') {
+      this.togglePanel(extension, panel);
+    } else if (button.action?.type === 'openPanel') {
+      this.openPanel(extension, panel);
     }
   }
 
@@ -599,18 +654,13 @@ export class PlotterExtensionService {
         ...this.unitsMethods(),
         ...this.resourcesMethods(placed.extension),
         ...this.mapMethods(),
+        ...this.uiPanelMethods(placed.extension),
         'ui.openConfigPanel': async () => {
           this.openConfigPanel(placed);
           return {};
         },
-        'ui.openPanel': async (params) => {
-          const { panel } = (params ?? {}) as { panel?: string };
-          if (!panel || !this.openPanel(placed.extension, panel)) {
-            throw new RpcError(`No such panel: ${panel}`, {
-              code: RPC_ERRORS.INVALID_PARAMS,
-              reason: 'UNKNOWN_PANEL'
-            });
-          }
+        'ui.toggleConfigPanel': async () => {
+          this.toggleConfigPanel(placed);
           return {};
         }
       },
@@ -658,18 +708,9 @@ export class PlotterExtensionService {
         ...this.unitsMethods(),
         ...this.resourcesMethods(opts.extension),
         ...this.mapMethods(),
+        ...this.uiPanelMethods(opts.extension),
         'ui.closePanel': async () => {
           opts.close();
-          return {};
-        },
-        'ui.openPanel': async (params) => {
-          const { panel } = (params ?? {}) as { panel?: string };
-          if (!panel || !this.openPanel(opts.extension, panel)) {
-            throw new RpcError(`No such panel: ${panel}`, {
-              code: RPC_ERRORS.INVALID_PARAMS,
-              reason: 'UNKNOWN_PANEL'
-            });
-          }
           return {};
         }
       },
@@ -700,6 +741,10 @@ export class PlotterExtensionService {
 
   // ---------- configuration panels ----------
 
+  // the currently open widget-configuration dialog, if any
+  private configDialogRef: MatDialogRef<unknown> | null = null;
+  private configDialogInstance: string | null = null;
+
   openConfigPanel(placed: PlacedWidget) {
     const manifest = this.manifests()[placed.extension];
     const widget = this.widgetDef(placed.extension, placed.widget);
@@ -710,7 +755,7 @@ export class PlotterExtensionService {
     }
     // Deferred import avoids a service->component->service import cycle.
     import('./panel-dialog.component').then(({ PlotterPanelDialog }) => {
-      this.dialog.open(PlotterPanelDialog, {
+      const ref = this.dialog.open(PlotterPanelDialog, {
         data: {
           extension: placed.extension,
           panel,
@@ -720,7 +765,27 @@ export class PlotterExtensionService {
         width: '440px',
         maxHeight: '85vh'
       });
+      this.configDialogRef = ref;
+      this.configDialogInstance = placed.instanceId;
+      ref.afterClosed().subscribe(() => {
+        if (this.configDialogRef === ref) {
+          this.configDialogRef = null;
+          this.configDialogInstance = null;
+        }
+      });
     });
+  }
+
+  /**
+   * Toggle a widget instance's configuration panel: close it if it is already
+   * open for that instance, otherwise open it.
+   */
+  toggleConfigPanel(placed: PlacedWidget) {
+    if (this.configDialogRef && this.configDialogInstance === placed.instanceId) {
+      this.configDialogRef.close();
+      return;
+    }
+    this.openConfigPanel(placed);
   }
 
   // ---------- state storage ----------
