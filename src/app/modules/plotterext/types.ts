@@ -12,7 +12,8 @@ export const HOST_CAPABILITIES = [
   'widgets',
   'panels.iframe',
   'signalk.stream',
-  'signalk.put'
+  'signalk.put',
+  'units'
 ];
 
 export type WidgetSize = '1x1' | '2x1' | '1x2' | '2x2';

@@ -380,6 +380,7 @@ export class PlotterExtensionService {
       methods: {
         ...this.stateMethods(placed.extension, placed.instanceId),
         ...this.signalkMethods(ctx),
+        ...this.unitsMethods(),
         'ui.openConfigPanel': async () => {
           this.openConfigPanel(placed);
           return {};
@@ -426,6 +427,7 @@ export class PlotterExtensionService {
       methods: {
         ...this.stateMethods(opts.extension, opts.targetInstance ?? null),
         ...this.signalkMethods(ctx),
+        ...this.unitsMethods(),
         'ui.closePanel': async () => {
           opts.close();
           return {};
@@ -578,6 +580,34 @@ export class PlotterExtensionService {
         ctx.conn.publish(event, params);
       }
     }
+  }
+
+  // ---------- unit preferences ----------
+
+  /**
+   * Host API method exposing the user's preferred display units (Freeboard's
+   * Settings -> Units tab) so extensions can pick sensible conversions.
+   * Vocabulary follows Freeboard's settings values:
+   *   speed: 'kn' | 'm/s' | 'km/h' | 'mph'
+   *   distance: 'kilometer' | 'naut-mile'
+   *   depth / length: 'm' | 'foot'
+   *   temperature: 'C' | 'F'
+   */
+  private unitsMethods(): Record<string, MethodHandler> {
+    return {
+      'units.get': async () => {
+        const u = this.app.config.units;
+        return {
+          units: {
+            speed: u.speed,
+            distance: u.distance,
+            depth: u.depth,
+            length: u.length,
+            temperature: u.temperature
+          }
+        };
+      }
+    };
   }
 
   // ---------- Signal K relay ----------
