@@ -2,6 +2,7 @@
 // configuration panels in this phase; generic panels reuse it later).
 
 import {
+  AfterViewInit,
   Component,
   ElementRef,
   Inject,
@@ -93,7 +94,9 @@ export interface PlotterPanelDialogData {
     `
   ]
 })
-export class PlotterPanelDialog implements OnInit, OnDestroy {
+export class PlotterPanelDialog implements OnInit, AfterViewInit, OnDestroy {
+  // non-static: the iframe lives inside an @if (data.panel) block, so it is
+  // only available after view init
   @ViewChild('frame')
   frame?: ElementRef<HTMLIFrameElement>;
 
@@ -108,12 +111,18 @@ export class PlotterPanelDialog implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    // No panel -> a settings-less widget; the dialog only offers Remove.
-    if (!this.data.panel || !this.frame) return;
+    // set the iframe src before first render so it loads with the dialog
     const panel = this.data.panel;
+    if (!panel) return;
     this.url = this.sanitizer.bypassSecurityTrustResourceUrl(
       panel.url ? this.service.resolveAssetUrl(panel.url) : 'about:blank'
     );
+  }
+
+  ngAfterViewInit() {
+    // No panel -> a settings-less widget; the dialog only offers Remove.
+    const panel = this.data.panel;
+    if (!panel || !this.frame) return;
     this.detach = this.service.attachPanel(this.frame.nativeElement, {
       extension: this.data.extension,
       panel,

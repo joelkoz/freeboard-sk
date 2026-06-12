@@ -745,6 +745,14 @@ export class PlotterExtensionService {
   private configDialogRef: MatDialogRef<unknown> | null = null;
   private configDialogInstance: string | null = null;
 
+  /** Whether a placed widget has a usable iframe configuration panel. */
+  widgetHasConfigPanel(placed: PlacedWidget): boolean {
+    const manifest = this.manifests()[placed.extension];
+    const widget = this.widgetDef(placed.extension, placed.widget);
+    const found = manifest?.panels?.find((p) => p.id === widget?.configPanel);
+    return !!(found && found.type === 'iframe' && found.url);
+  }
+
   openConfigPanel(placed: PlacedWidget) {
     const manifest = this.manifests()[placed.extension];
     const widget = this.widgetDef(placed.extension, placed.widget);

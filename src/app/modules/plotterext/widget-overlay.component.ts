@@ -23,7 +23,7 @@ import { PlotterExtensionService } from './plotterext.service';
 import { PlotterWidgetFrame } from './widget-frame.component';
 import { ANCHORS, AnchorId, PlacedWidget, parseSize } from './types';
 
-const HOLD_MS = 600;
+const HOLD_MS = 1500;
 const MOVE_SLOP_PX = 8;
 
 interface CellStyle {
@@ -351,7 +351,12 @@ export class PlotterExtensionOverlay implements OnInit, OnDestroy {
           anchor,
           choice.origin
         );
-        this.service.openConfigPanel(placed);
+        // Auto-open configuration only for widgets that have settings; a
+        // settings-less widget would otherwise show an empty config dialog
+        // right after placement.
+        if (this.service.widgetHasConfigPanel(placed)) {
+          this.service.openConfigPanel(placed);
+        }
       });
   }
 }
