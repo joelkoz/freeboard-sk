@@ -207,6 +207,8 @@ The following plugins are recommended for installation on the Signal K Server to
 
 ## Development:
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/SignalK/freeboard-sk)
+
 Freeboard-SK is an Angular project.
 
 It is recommended that the Angular CLI be installed globally `npm i -g @angular/cli@latest` prior to following the steps below.
@@ -261,4 +263,3 @@ To build the NPM package use the `npm pack` command to:
 
 _**Freeboard-SK** is a port of http://www.42.co.nz/freeboard for use with Signal K communication protocols and server features._
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/SignalK/freeboard-sk)
