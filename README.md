@@ -260,3 +260,5 @@ To build the NPM package use the `npm pack` command to:
 ---
 
 _**Freeboard-SK** is a port of http://www.42.co.nz/freeboard for use with Signal K communication protocols and server features._
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/SignalK/freeboard-sk)
