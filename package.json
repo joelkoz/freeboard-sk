@@ -36,7 +36,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "node scripts/build.mjs",
     "test": "ng test",
     "format": "prettier --ignore-path .gitignore --write \"src/**/*.+(ts|html)\"",
     "format:helper": "prettier --ignore-path .gitignore --write \"helper/**/*.+(ts|html)\"",
@@ -62,6 +62,7 @@
     "@signalk/server-api": "^2.24.0",
     "geolib": "^3.3.3",
     "google-protobuf": "^4.0.1",
+    "signalk-plotterext-bus": "^0.5.0",
     "tslib": "^2.0.0",
     "uuid": "^11.1.0"
   },

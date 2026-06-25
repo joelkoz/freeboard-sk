@@ -104,11 +104,16 @@ import {
   SelectionResultDef
 } from './modules/map/fbmap-interact.service';
 import { RadarAPIService } from './modules/radar/radar-api.service';
+import { PlotterExtensionService } from './modules/plotterext/plotterext.service';
+import { PlotterExtensionOverlay } from './modules/plotterext/widget-overlay.component';
+import { PlotterBackgroundHost } from './modules/plotterext/background-runtime.component';
+import { PlotterPanelDrawer } from './modules/plotterext/panel-drawer.component';
 import {
   RoutePanel,
   SKResourceType,
   WaypointPanel
 } from './modules/skresources';
+import { SymbolService, setSymbolRegistry } from './modules/icons';
 
 interface DrawEndEvent {
   coordinates: LineString | Position | Polygon;
@@ -164,7 +169,10 @@ interface DrawEndEvent {
     RegionPanel,
     WaypointPanel,
     RoutePanel,
-    RadarPanel
+    RadarPanel,
+    PlotterExtensionOverlay,
+    PlotterBackgroundHost,
+    PlotterPanelDrawer
   ]
 })
 export class AppComponent {
@@ -263,6 +271,8 @@ export class AppComponent {
   private settings = inject(SettingsFacade);
   protected autopilot = inject(AutopilotService);
   protected radarApi = inject(RadarAPIService);
+  private symbols = inject(SymbolService);
+  protected plotterExt = inject(PlotterExtensionService);
 
   constructor() {
     // set self to active vessel
@@ -297,6 +307,15 @@ export class AppComponent {
         if (this.sideright?.opened) {
           this.closeDrawer();
         }
+      }
+    });
+
+    // apply programmatic map move requests (e.g. from plotter extensions)
+    // through Freeboard's own centering path so chart layers refresh.
+    effect(() => {
+      const req = this.app.mapMoveRequest();
+      if (req) {
+        this.centerAndZoom(req.center, req.zoom);
       }
     });
   }
@@ -769,7 +788,10 @@ export class AppComponent {
               }
             })
             .finally(() => {
-              this.fetchResources(true); // fetch all resource types from server
+              this.loadSymbolsThenFetchResources();
+              // after user config is final so persisted widget placements
+              // reflect the server-stored layout, not a stale local copy
+              this.plotterExt.init();
             });
           this.getFeatures();
           this.app.data.server = this.signalk.server.info;
@@ -1868,6 +1890,15 @@ export class AppComponent {
   }
 
   // ******** SIGNAL K STREAM *************
+
+  /** Load external symbols then fetch all resource types. */
+  private async loadSymbolsThenFetchResources(): Promise<void> {
+    await this.symbols.load();
+    // Register SymbolService with the module-level hook so pure functions
+    // in app.icons.ts can resolve external symbols without DI injection.
+    setSymbolRegistry(this.symbols);
+    this.fetchResources(true);
+  }
 
   /** fetch resource types from server */
   private fetchResources(allTypes = false) {
