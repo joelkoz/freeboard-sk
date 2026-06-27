@@ -1841,13 +1841,18 @@ export class AppComponent {
           return;
         }
 
-        // save changes
+        // save changes. Editing an unsaved live buffer just applies the change
+        // to the draft (it is not persisted here — that is an explicit Save),
+        // so word the prompt to match rather than implying a named save.
+        const fsParts = this.mapInteract.draw.forSave.id.split('.');
+        const isBufferEdit =
+          fsParts[0] === 'route' && this.routeBuffers.has(fsParts[1]);
         this.app
           .showConfirm(
-            `Do you want to save the changes made to ${
-              this.mapInteract.draw.forSave.id.split('.')[0]
-            }?`,
-            'Save Changes'
+            isBufferEdit
+              ? 'Keep the changes to this unsaved route?'
+              : `Do you want to save the changes made to ${fsParts[0]}?`,
+            isBufferEdit ? 'Keep Changes' : 'Save Changes'
           )
           .subscribe((result) => {
             const r = this.mapInteract.draw.forSave.id.split('.');

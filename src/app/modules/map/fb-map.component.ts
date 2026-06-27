@@ -902,6 +902,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
     rte.feature.geometry.coordinates = b.points.map(
       (p) => p.position
     ) as LineString;
+    rte.distance = GeoUtils.routeLength(rte.feature.geometry.coordinates);
     return [b.routeId, rte, true];
   }
 
@@ -1404,14 +1405,14 @@ export class FBMapComponent implements OnInit, OnDestroy {
       case 'route':
         if (this.routeBuffers.has(t[1])) {
           // Unsaved live edit buffer (amber draft): build the popover from the
-          // registry, not the saved-route cache.
+          // registry, not the saved-route cache. The popover header shows the
+          // route name, so fall back to "(unsaved)" for an unnamed draft.
+          const skr = this.bufferToFBRoute(this.routeBuffers.get(t[1])!)[1];
+          skr.name = skr.name || '(unsaved)';
           poData.id = t[1];
           poData.type = 'route';
           poData.title = 'Route (unsaved)';
-          poData.resource = [
-            t[1],
-            this.bufferToFBRoute(this.routeBuffers.get(t[1])!)[1]
-          ];
+          poData.resource = [t[1], skr];
           poData.show = true;
           poData.readOnly = false;
         } else {

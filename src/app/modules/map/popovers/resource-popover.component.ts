@@ -32,6 +32,7 @@ interface PopoverCtrl {
   isActive: boolean;
   activeText: string;
   isReadOnly: boolean;
+  modifyLabel: string;
 }
 
 @Component({
@@ -119,7 +120,7 @@ interface PopoverCtrl {
               [disabled]="this.ctrl.isReadOnly"
             >
               <mat-icon>touch_app</mat-icon>
-              MOVE
+              {{ ctrl.modifyLabel }}
             </button>
           </div>
         }
@@ -269,7 +270,8 @@ export class ResourcePopoverComponent {
     canActivate: false,
     isActive: false,
     activeText: 'ACTIVE',
-    isReadOnly: false
+    isReadOnly: false,
+    modifyLabel: 'MOVE'
   };
   protected hasMarkdown = signal<boolean>(false);
   protected icon: AppIconDef;
@@ -283,6 +285,9 @@ export class ResourcePopoverComponent {
       this.parse();
       this.ctrl.showModifyButton =
         this.type() !== 'destination' && this.featureCount() > 0 ? true : false;
+      // Routes/regions are shape-edited ("Modify"); points are moved ("Move").
+      this.ctrl.modifyLabel =
+        this.type() === 'route' || this.type() === 'region' ? 'MODIFY' : 'MOVE';
     });
   }
 
