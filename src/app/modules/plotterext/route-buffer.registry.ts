@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import type { RoutePoint, RouteSummary } from 'signalk-plotterext-bus/host';
 
@@ -49,6 +49,10 @@ export class RouteBufferRegistry {
   /** Stream of buffer mutations (created / deleted / dirty). */
   readonly events$: Observable<RouteRegistryEvent> = this.events.asObservable();
 
+  private readonly liveSignal = signal<RouteBuffer[]>([]);
+  /** Reactive snapshot of all live buffers, for chart rendering. */
+  readonly live = this.liveSignal.asReadonly();
+
   /** Create a new buffer, optionally seeded with a name and/or points. */
   create(opts: { name?: string; points?: RoutePoint[] } = {}): RouteBuffer {
     const routeId = this.newRouteId();
@@ -60,6 +64,7 @@ export class RouteBufferRegistry {
       points: (opts.points ?? []).map((p) => this.clonePoint(p))
     };
     this.buffers.set(routeId, buffer);
+    this.refreshLive();
     this.events.next({
       type: 'created',
       routeId,
@@ -100,6 +105,7 @@ export class RouteBufferRegistry {
     }
     b.rev += 1;
     this.buffers.delete(routeId);
+    this.refreshLive();
     this.events.next({ type: 'deleted', routeId, rev: b.rev });
     return true;
   }
@@ -116,6 +122,7 @@ export class RouteBufferRegistry {
     }
     b.points = (points ?? []).map((p) => this.clonePoint(p));
     b.rev += 1;
+    this.refreshLive();
     this.events.next({
       type: 'dirty',
       routeId,
@@ -123,6 +130,12 @@ export class RouteBufferRegistry {
       reason: 'replaced'
     });
     return this.snapshot(b);
+  }
+
+  private refreshLive(): void {
+    this.liveSignal.set(
+      [...this.buffers.values()].map((b) => this.snapshot(b))
+    );
   }
 
   private newRouteId(): string {

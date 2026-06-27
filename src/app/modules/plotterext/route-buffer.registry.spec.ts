@@ -120,4 +120,16 @@ describe('RouteBufferRegistry', () => {
     const reg = new RouteBufferRegistry();
     expect(reg.replace('nope', [])).toBeUndefined();
   });
+
+  it('exposes a reactive live() signal that tracks create/replace/delete', () => {
+    const reg = new RouteBufferRegistry();
+    expect(reg.live()).toEqual([]);
+    const { routeId } = reg.create({ name: 'A', points: [{ position: [0, 0] }] });
+    expect(reg.live()).toHaveLength(1);
+    expect(reg.live()[0].routeId).toBe(routeId);
+    reg.replace(routeId, [{ position: [1, 1] }, { position: [2, 2] }]);
+    expect(reg.live()[0].points).toHaveLength(2);
+    reg.delete(routeId);
+    expect(reg.live()).toEqual([]);
+  });
 });
