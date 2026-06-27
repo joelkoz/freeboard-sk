@@ -74,4 +74,24 @@ describe('route methods (host handlers)', () => {
     const { call } = setup();
     await expect(call('route.get', {})).rejects.toBeInstanceOf(Error);
   });
+
+  it('route.replace sets points and returns the new rev', async () => {
+    const { call, registry } = setup();
+    const { routeId } = (await call('route.create', {
+      points: [{ position: [0, 0] }]
+    })) as { routeId: string };
+    const res = (await call('route.replace', {
+      routeId,
+      points: [{ position: [1, 1] }, { position: [2, 2] }]
+    })) as { rev: number };
+    expect(res.rev).toBe(2);
+    expect(registry.get(routeId)?.points).toHaveLength(2);
+  });
+
+  it('route.replace on an unknown id rejects with routes.unknownId', async () => {
+    const { call } = setup();
+    await expect(
+      call('route.replace', { routeId: 'nope', points: [] })
+    ).rejects.toHaveProperty('reason', 'routes.unknownId');
+  });
 });

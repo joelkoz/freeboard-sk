@@ -104,6 +104,27 @@ export class RouteBufferRegistry {
     return true;
   }
 
+  /**
+   * Replace all points of a buffer (bulk set). Returns the updated snapshot, or
+   * undefined if no buffer has that id. Emits a `dirty` event (reason
+   * `replaced`) — the auto-router's primary write path.
+   */
+  replace(routeId: string, points: RoutePoint[]): RouteBuffer | undefined {
+    const b = this.buffers.get(routeId);
+    if (!b) {
+      return undefined;
+    }
+    b.points = (points ?? []).map((p) => this.clonePoint(p));
+    b.rev += 1;
+    this.events.next({
+      type: 'dirty',
+      routeId,
+      rev: b.rev,
+      reason: 'replaced'
+    });
+    return this.snapshot(b);
+  }
+
   private newRouteId(): string {
     const c = (globalThis as { crypto?: Crypto }).crypto;
     if (c?.randomUUID) {

@@ -44,6 +44,16 @@ export function createRouteMethods(
       return { routeId: buffer.routeId, rev: buffer.rev };
     },
 
+    'route.replace': (params) => {
+      const routeId = requireRouteId(params);
+      const { points } = (params ?? {}) as { points?: RoutePoint[] };
+      const updated = registry.replace(routeId, points ?? []);
+      if (!updated) {
+        throw unknownId();
+      }
+      return { rev: updated.rev };
+    },
+
     'route.get': (params) => {
       const buffer = registry.get(requireRouteId(params));
       if (!buffer) {

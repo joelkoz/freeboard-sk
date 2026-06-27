@@ -98,4 +98,26 @@ describe('RouteBufferRegistry', () => {
     expect(fresh.points).toHaveLength(1);
     expect(fresh.points[0].position[0]).toBe(1);
   });
+
+  it('replace sets all points, bumps rev, and emits a dirty event', () => {
+    const reg = new RouteBufferRegistry();
+    const { routeId } = reg.create({ points: [{ position: [0, 0] }] });
+    const events: RouteRegistryEvent[] = [];
+    reg.events$.subscribe((e) => events.push(e));
+    const updated = reg.replace(routeId, [
+      { position: [1, 1] },
+      { position: [2, 2] }
+    ]);
+    expect(updated?.rev).toBe(2);
+    expect(updated?.points).toHaveLength(2);
+    expect(reg.get(routeId)?.points[1].position).toEqual([2, 2]);
+    expect(events).toEqual([
+      { type: 'dirty', routeId, rev: 2, reason: 'replaced' }
+    ]);
+  });
+
+  it('replace on an unknown id returns undefined', () => {
+    const reg = new RouteBufferRegistry();
+    expect(reg.replace('nope', [])).toBeUndefined();
+  });
 });
