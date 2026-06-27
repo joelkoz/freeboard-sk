@@ -138,6 +138,16 @@ export class RouteBufferRegistry {
     );
   }
 
+  /**
+   * Re-emit the live() signal without changing any buffer. Used to force a
+   * chart re-render — e.g. to restore a draft's geometry after the user
+   * cancels an in-place edit (the map feature was moved by the Modify
+   * interaction but the registry was never updated).
+   */
+  refresh(): void {
+    this.refreshLive();
+  }
+
   private newRouteId(): string {
     const c = (globalThis as { crypto?: Crypto }).crypto;
     if (c?.randomUUID) {

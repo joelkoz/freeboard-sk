@@ -911,10 +911,10 @@ export class FBMapComponent implements OnInit, OnDestroy {
     }
     this.mapInteract.startModifying(this.overlay());
     if (this.overlay().type === 'route') {
-      this.mapInteract.measurementCoords = this.skres.fromCache(
-        'routes',
-        this.overlay().id
-      )[1].feature.geometry.coordinates;
+      const rid = this.overlay().id;
+      this.mapInteract.measurementCoords = this.routeBuffers.has(rid)
+        ? (this.routeBuffers.get(rid)!.points.map((p) => p.position) as LineString)
+        : this.skres.fromCache('routes', rid)[1].feature.geometry.coordinates;
     }
     if (featureType === 'anchor') {
       this.overlay().type = featureType;
@@ -1093,8 +1093,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
               class: 'icon-route'
             };
             addToFeatureList = true;
-            const r = this.skres.fromCache('routes', t[1]);
-            text = r[1].name;
+            if (this.routeBuffers.has(t[1])) {
+              text = this.routeBuffers.get(t[1])!.name || 'Route (unsaved)';
+            } else {
+              const r = this.skres.fromCache('routes', t[1]);
+              text = r[1].name;
+            }
             break;
           case 'waypoint':
             icon = {
@@ -1398,16 +1402,30 @@ export class FBMapComponent implements OnInit, OnDestroy {
         }
         break;
       case 'route':
-        item = [this.skres.fromCache('routes', t[1])];
-        if (!item) {
-          return false;
+        if (this.routeBuffers.has(t[1])) {
+          // Unsaved live edit buffer (amber draft): build the popover from the
+          // registry, not the saved-route cache.
+          poData.id = t[1];
+          poData.type = 'route';
+          poData.title = 'Route (unsaved)';
+          poData.resource = [
+            t[1],
+            this.bufferToFBRoute(this.routeBuffers.get(t[1])!)[1]
+          ];
+          poData.show = true;
+          poData.readOnly = false;
+        } else {
+          item = [this.skres.fromCache('routes', t[1])];
+          if (!item) {
+            return false;
+          }
+          poData.id = t[1];
+          poData.type = t[0];
+          poData.title = 'Route';
+          poData.resource = item[0];
+          poData.show = true;
+          poData.readOnly = item[0][1]?.feature?.properties?.readOnly ?? false;
         }
-        poData.id = t[1];
-        poData.type = t[0];
-        poData.title = 'Route';
-        poData.resource = item[0];
-        poData.show = true;
-        poData.readOnly = item[0][1]?.feature?.properties?.readOnly ?? false;
         if (this.infoPanel.opened()) {
           this.overlay.set(poData);
           this.popoverInfo();
@@ -1778,7 +1796,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
         this.skres.deleteWaypoint(id);
         break;
       case 'route':
-        this.skres.deleteRoute(id);
+        // Discard an unsaved live buffer locally; only saved routes are
+        // deleted from the server.
+        if (this.routeBuffers.has(id)) {
+          this.routeBuffers.delete(id);
+        } else {
+          this.skres.deleteRoute(id);
+        }
         break;
       case 'note':
         this.skres.deleteNote(id);

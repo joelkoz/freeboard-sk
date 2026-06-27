@@ -1854,11 +1854,23 @@ export class AppComponent {
             if (result) {
               // save changes
               if (r[0] === 'route') {
-                this.skres.updateRouteCoords(
-                  r[1],
-                  this.mapInteract.draw.forSave.coords,
-                  this.mapInteract.draw.forSave.coordsMetadata
-                );
+                if (this.routeBuffers.has(r[1])) {
+                  // Live edit buffer: write the modified geometry back to the
+                  // buffer (emits route.dirty). Never PUT to the server — a
+                  // buffer is persisted only via an explicit save.
+                  this.routeBuffers.replace(
+                    r[1],
+                    this.mapInteract.draw.forSave.coords.map((position) => ({
+                      position
+                    }))
+                  );
+                } else {
+                  this.skres.updateRouteCoords(
+                    r[1],
+                    this.mapInteract.draw.forSave.coords,
+                    this.mapInteract.draw.forSave.coordsMetadata
+                  );
+                }
               }
               if (r[0] === 'waypoint') {
                 this.skres.updateWaypointPosition(
@@ -1888,7 +1900,13 @@ export class AppComponent {
             } else {
               // do not save
               if (r[0] === 'route') {
-                this.skres.refreshRoutes();
+                if (this.routeBuffers.has(r[1])) {
+                  // Restore the draft: the Modify interaction moved the map
+                  // feature, but the buffer itself was never changed.
+                  this.routeBuffers.refresh();
+                } else {
+                  this.skres.refreshRoutes();
+                }
               }
               if (r[0] === 'waypoint') {
                 this.skres.refreshWaypoints();
