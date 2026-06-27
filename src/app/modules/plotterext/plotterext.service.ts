@@ -56,6 +56,8 @@ import {
   cellHeightPx,
   parseSize
 } from './types';
+import { RouteBufferRegistry } from './route-buffer.registry';
+import { createRouteMethods } from './route-methods';
 
 const STATE_STORAGE_KEY = 'fb-plotterext-state';
 const SK_PATH_PERIOD = 1000; // default delta period (ms) for relayed paths
@@ -560,7 +562,8 @@ export class PlotterExtensionService {
     private signalk: SignalKClient,
     private dialog: MatDialog,
     private skres: SKResourceService,
-    private mapService: MapService
+    private mapService: MapService,
+    private routeRegistry: RouteBufferRegistry
   ) {
     if (isDevMode()) {
       // console handle for exercising the host API during development
@@ -572,6 +575,46 @@ export class PlotterExtensionService {
     window.addEventListener('resize', () =>
       this.viewportTick.update((n) => n + 1)
     );
+    this.bridgeRouteEvents();
+  }
+
+  /**
+   * Bridge RouteBufferRegistry mutations to `route.*` bus events. Delivery is
+   * subscription-gated by broadcastMessage, so only contexts that subscribed
+   * to (e.g.) `route.**` receive them. The service is an app-lifetime singleton,
+   * so this subscription lives for the session by design.
+   */
+  private bridgeRouteEvents(): void {
+    this.routeRegistry.events$.subscribe((e) => {
+      switch (e.type) {
+        case 'created':
+          this.broadcastMessage('route.created', {
+            routeId: e.routeId,
+            rev: e.rev,
+            name: e.name,
+            pointCount: e.pointCount
+          });
+          break;
+        case 'deleted':
+          this.broadcastMessage('route.deleted', {
+            routeId: e.routeId,
+            rev: e.rev
+          });
+          break;
+        case 'dirty':
+          this.broadcastMessage('route.dirty', {
+            routeId: e.routeId,
+            rev: e.rev,
+            ...(e.reason !== undefined ? { reason: e.reason } : {})
+          });
+          break;
+      }
+    });
+  }
+
+  /** Host API handlers for the `routes` capability. */
+  private routeMethods(): Record<string, MethodHandler> {
+    return createRouteMethods(this.routeRegistry);
   }
 
   /** Fetch manifests. Called after the server connection is established. */
@@ -963,6 +1006,7 @@ export class PlotterExtensionService {
         ...this.unitsMethods(),
         ...this.resourcesMethods(placed.extension),
         ...this.mapMethods(),
+        ...this.routeMethods(),
         ...this.uiPanelMethods(placed.extension),
         'ui.openConfigPanel': async () => {
           this.openConfigPanel(placed);
@@ -1017,6 +1061,7 @@ export class PlotterExtensionService {
         ...this.unitsMethods(),
         ...this.resourcesMethods(opts.extension),
         ...this.mapMethods(),
+        ...this.routeMethods(),
         ...this.uiPanelMethods(opts.extension),
         'ui.closePanel': async () => {
           opts.close();
@@ -1061,6 +1106,7 @@ export class PlotterExtensionService {
         ...this.unitsMethods(),
         ...this.resourcesMethods(opts.extension),
         ...this.mapMethods(),
+        ...this.routeMethods(),
         ...this.uiPanelMethods(opts.extension)
       },
       onError: (err) => console.warn('plotterext background error', err)
