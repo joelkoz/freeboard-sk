@@ -1,19 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
-
-/**
- * Position tuple `[lon, lat, alt?]`. Structurally identical to the app-wide
- * `Position` type (src/app/types); kept local so this registry stays
- * self-contained and unit-testable in isolation.
- */
-export type RoutePosition = [number, number, number?];
-
-/** A single point in a live route edit buffer. */
-export interface RoutePoint {
-  position: RoutePosition;
-  name?: string;
-  description?: string;
-}
+import type { RoutePoint, RouteSummary } from 'signalk-plotterext-bus/host';
 
 /**
  * A live, in-memory route edit buffer. Not necessarily persisted: a buffer is
@@ -28,15 +15,6 @@ export interface RouteBuffer {
   /** Whether the buffer has been persisted to the routes resource collection. */
   saved: boolean;
   points: RoutePoint[];
-}
-
-/** Summary entry returned by `list()`. */
-export interface RouteBufferSummary {
-  routeId: string;
-  name: string | null;
-  rev: number;
-  pointCount: number;
-  saved: boolean;
 }
 
 /**
@@ -104,7 +82,7 @@ export class RouteBufferRegistry {
   }
 
   /** Summaries of all live buffers. */
-  list(): RouteBufferSummary[] {
+  list(): RouteSummary[] {
     return [...this.buffers.values()].map((b) => ({
       routeId: b.routeId,
       name: b.name,
@@ -142,7 +120,7 @@ export class RouteBufferRegistry {
 
   private clonePoint(p: RoutePoint): RoutePoint {
     return {
-      position: [...p.position] as RoutePosition,
+      position: [...p.position] as RoutePoint['position'],
       ...(p.name !== undefined ? { name: p.name } : {}),
       ...(p.description !== undefined ? { description: p.description } : {})
     };
