@@ -105,6 +105,7 @@ import {
 } from './modules/map/fbmap-interact.service';
 import { RadarAPIService } from './modules/radar/radar-api.service';
 import { PlotterExtensionService } from './modules/plotterext/plotterext.service';
+import { RouteBufferRegistry } from './modules/plotterext/route-buffer.registry';
 import { PlotterExtensionOverlay } from './modules/plotterext/widget-overlay.component';
 import { PlotterBackgroundHost } from './modules/plotterext/background-runtime.component';
 import { PlotterPanelDrawer } from './modules/plotterext/panel-drawer.component';
@@ -272,6 +273,7 @@ export class AppComponent {
   protected autopilot = inject(AutopilotService);
   protected radarApi = inject(RadarAPIService);
   private symbols = inject(SymbolService);
+  protected routeBuffers = inject(RouteBufferRegistry);
   protected plotterExt = inject(PlotterExtensionService);
 
   constructor() {
@@ -1795,7 +1797,16 @@ export class AppComponent {
         this.skres.newWaypointAt(e.coordinates as Position);
         break;
       case 'route':
-        this.skres.newRouteAt(e.coordinates as LineString);
+        // Draw a route into a live edit buffer (rendered as an amber draft)
+        // rather than immediately prompting to save. This lets routes-capable
+        // extensions (e.g. auto-routing) lock onto and rewrite the route before
+        // the user decides to persist it. Saving a buffer to a stored route
+        // (route.save) is a later slice.
+        this.routeBuffers.create({
+          points: (e.coordinates as LineString).map((position) => ({
+            position
+          }))
+        });
         break;
       case 'region':
         const region = new SKRegion();
