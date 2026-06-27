@@ -267,6 +267,17 @@
   >
   </fb-routes>
 
+  <!-- Route edit buffers (unsaved drafts) rendered amber over saved routes -->
+  <fb-routes
+    [routes]="bufferRoutes()"
+    [routeStyles]="draftRouteStyles"
+    [darkMode]="app.uiConfig().invertColor"
+    [labelMinZoom]="this.app.config.map.labelsMinZoom"
+    [mapZoom]="mapZoomLevel()"
+    [zIndex]="510"
+  >
+  </fb-routes>
+
   <!-- Routes -->
   @if (activeRoute && !app.data.activeRouteIsEditing) {
     <fb-route-direction

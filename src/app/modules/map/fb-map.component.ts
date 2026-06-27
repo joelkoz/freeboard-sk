@@ -8,6 +8,7 @@ import {
   ViewChild,
   SimpleChanges,
   signal,
+  computed,
   input,
   effect,
   inject
@@ -47,7 +48,13 @@ import { Feature as GeoJsonFeature } from 'geojson';
 
 import { Convert } from 'src/app/lib/convert';
 import { GeoUtils, Angle } from 'src/app/lib/geoutils';
-import { LineString, MultiLineString, Position } from 'src/app/types';
+import {
+  FBRoute,
+  FBRoutes,
+  LineString,
+  MultiLineString,
+  Position
+} from 'src/app/types';
 
 import { AppFacade } from 'src/app/app.facade';
 import { PlotterExtensionService } from 'src/app/modules/plotterext/plotterext.service';
@@ -82,10 +89,16 @@ import {
   destinationStyles,
   laylineStyles,
   drawStyles,
+  routeDraftStyles,
   targetAngleStyle,
   raceCourseStyles,
   bearingDistanceStyle
 } from './mapconfig';
+import { SKRoute } from 'src/app/modules/skresources/resource-classes';
+import {
+  RouteBuffer,
+  RouteBufferRegistry
+} from 'src/app/modules/plotterext/route-buffer.registry';
 import { ModifyEvent } from 'ol/interaction/Modify';
 import { DrawEvent } from 'ol/interaction/Draw';
 import { Coordinate } from 'ol/coordinate';
@@ -233,6 +246,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
     bearingDistance: bearingDistanceStyle
   };
 
+  // Live route edit buffers (unsaved drafts) rendered via a second fb-routes
+  // layer in the amber draft style.
+  protected draftRouteStyles = routeDraftStyles;
+  protected bufferRoutes = computed<FBRoutes>(() =>
+    this.routeBuffers.live().map((b) => this.bufferToFBRoute(b))
+  );
+
   // ** map feature data
   protected dfeat: IFeatureData = {
     aircraft: new Map(),
@@ -277,6 +297,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
   private settings = inject(SettingsFacade);
   private bottomSheet = inject(MatBottomSheet);
   private infoPanel = inject(InfoPanelFacade);
+  protected routeBuffers = inject(RouteBufferRegistry);
 
   constructor() {
     effect(() => {
@@ -874,6 +895,16 @@ export class FBMapComponent implements OnInit, OnDestroy {
   }
 
   /** Enter modify mode */
+  /** Convert a live route edit buffer to the FBRoute tuple fb-routes renders. */
+  private bufferToFBRoute(b: RouteBuffer): FBRoute {
+    const rte = new SKRoute();
+    rte.name = b.name ?? '';
+    rte.feature.geometry.coordinates = b.points.map(
+      (p) => p.position
+    ) as LineString;
+    return [b.routeId, rte, true];
+  }
+
   protected modifyFeature(featureType?: string) {
     if (this.mapInteract.draw.features.getLength() === 0) {
       return;
