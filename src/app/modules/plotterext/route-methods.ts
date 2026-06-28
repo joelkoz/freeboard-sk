@@ -26,9 +26,18 @@ export type RouteSaveHandler = (
   params: { name?: string; description?: string; dialog?: boolean }
 ) => Promise<{ href: string; rev: number } | null>;
 
+/**
+ * Bring a stored route (identified by `ref`) into the visible set, returning its
+ * addressable `routeId`. Injected because loading + displaying a resource is
+ * host-specific.
+ */
+export type RouteShowHandler = (
+  ref: string
+) => Promise<{ routeId: string; rev: number }>;
+
 export function createRouteMethods(
   registry: RouteBufferRegistry,
-  opts: { onSave?: RouteSaveHandler } = {}
+  opts: { onSave?: RouteSaveHandler; onShow?: RouteShowHandler } = {}
 ): Record<string, MethodHandler> {
   const requireRouteId = (params: unknown): string => {
     const routeId = (params as { routeId?: unknown } | null)?.routeId;
@@ -105,13 +114,20 @@ export function createRouteMethods(
       return {};
     },
 
-    // Bringing a stored route into the visible set requires loading it from the
-    // resources API and rendering it — host wiring not yet in place. Advertised
-    // so extensions get a clear reason rather than method-not-found.
-    'route.show': () => {
-      throw new RpcError('route.show is not yet implemented by this host', {
-        reason: 'routes.notSupported'
-      });
+    'route.show': (params) => {
+      const ref = (params as { ref?: unknown } | null)?.ref;
+      if (typeof ref !== 'string' || ref.length === 0) {
+        throw new RpcError('route.show requires a ref', {
+          code: RPC_ERRORS.INVALID_PARAMS,
+          reason: 'routes.badRef'
+        });
+      }
+      if (!opts.onShow) {
+        throw new RpcError('route.show is not supported by this host', {
+          reason: 'routes.notSupported'
+        });
+      }
+      return opts.onShow(ref);
     }
   };
 }

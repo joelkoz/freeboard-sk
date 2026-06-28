@@ -71,11 +71,33 @@ describe('route methods (host handlers)', () => {
     ).rejects.toHaveProperty('reason', 'routes.unknownId');
   });
 
-  it('route.show is advertised but rejects routes.notSupported (host wiring pending)', async () => {
+  it('route.show without an onShow handler rejects routes.notSupported', async () => {
     const { call } = setup();
     await expect(
       call('route.show', { ref: 'routes/abc' })
     ).rejects.toHaveProperty('reason', 'routes.notSupported');
+  });
+
+  it('route.show without a ref rejects routes.badRef', async () => {
+    const methods = createRouteMethods(new RouteBufferRegistry(), {
+      onShow: async () => ({ routeId: 'r', rev: 1 })
+    });
+    await expect(
+      (async () => methods['route.show']({}, {} as never))()
+    ).rejects.toHaveProperty('reason', 'routes.badRef');
+  });
+
+  it('route.show delegates to onShow and returns its result', async () => {
+    const seen: string[] = [];
+    const methods = createRouteMethods(new RouteBufferRegistry(), {
+      onShow: async (ref) => {
+        seen.push(ref);
+        return { routeId: 'route-shown', rev: 3 };
+      }
+    });
+    const res = await methods['route.show']({ ref: 'routes/abc' }, {} as never);
+    expect(res).toEqual({ routeId: 'route-shown', rev: 3 });
+    expect(seen).toEqual(['routes/abc']);
   });
 
   it('route.get without a routeId rejects', async () => {

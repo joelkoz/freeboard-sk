@@ -28,10 +28,11 @@ import * as uuid from 'uuid';
 import { AppFacade } from 'src/app/app.facade';
 import { SKResourceService } from 'src/app/modules/skresources/resources.service';
 import { MapService } from 'src/app/modules/map/ol/lib/map.service';
-import { FBNotes, LineString } from 'src/app/types';
+import { FBNotes, LineString, Position } from 'src/app/types';
 import {
   HostConnection,
   MethodHandler,
+  RoutePoint,
   RpcError,
   RPC_ERRORS,
   windowPort
@@ -618,7 +619,74 @@ export class PlotterExtensionService {
   /** Host API handlers for the `routes` capability. */
   private routeMethods(): Record<string, MethodHandler> {
     return createRouteMethods(this.routeRegistry, {
-      onSave: (routeId, params) => this.saveBuffer(routeId, params)
+      onSave: (routeId, params) => this.saveBuffer(routeId, params),
+      onShow: (ref) => this.showRoute(ref)
+    });
+  }
+
+  /**
+   * Bring a stored route into the visible set (capability `route.show`): ensure
+   * it is displayed, load its geometry, and register it as an addressable
+   * saved + clean route under its resource id. Throws `routes.badRef` if no such
+   * route exists.
+   */
+  async showRoute(ref: string): Promise<{ routeId: string; rev: number }> {
+    this.skres.selectionAdd('routes', ref);
+    await this.skres.refreshRoutes();
+    const cached = this.skres.fromCache('routes', ref);
+    if (!cached) {
+      throw new RpcError('No such route', { reason: 'routes.badRef' });
+    }
+    const route = cached[1];
+    const coords = (route.feature?.geometry?.coordinates ?? []) as Position[];
+    const meta = route.feature?.properties?.coordinatesMeta as
+      | Array<{ name?: string }>
+      | undefined;
+    const points: RoutePoint[] = coords.map((position, i) => ({
+      position,
+      ...(meta?.[i]?.name ? { name: meta[i].name } : {})
+    }));
+    const buf = this.routeRegistry.show({
+      routeId: ref,
+      name: route.name ?? null,
+      points,
+      href: ref
+    });
+    return { routeId: buf.routeId, rev: buf.rev };
+  }
+
+  /**
+   * Mirror a native edit of a stored route through the registry so extensions
+   * observe it, then persist. The route becomes addressable (`route.visible` if
+   * newly mirrored, else `route.dirty`) and is then saved (`route.saved`). The
+   * geometry is persisted via the existing resource path, preserving per-point
+   * metadata. Called by the host's own Modify-route flow.
+   */
+  async saveNativeRouteEdit(
+    routeId: string,
+    coords: Position[],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    coordsMetadata?: Array<any>
+  ): Promise<void> {
+    const points: RoutePoint[] = coords.map((position) => ({ position }));
+    let buf = this.routeRegistry.get(routeId);
+    if (!buf) {
+      const cached = this.skres.fromCache('routes', routeId);
+      const name = cached ? (cached[1].name ?? null) : null;
+      buf = this.routeRegistry.show({ routeId, name, points, href: routeId });
+    } else {
+      this.routeRegistry.replace(routeId, points);
+      buf = this.routeRegistry.get(routeId);
+    }
+    const href = buf?.href ?? routeId;
+    this.skres.updateRouteCoords(href, coords, coordsMetadata);
+    const rev = this.routeRegistry.markSaved(routeId, href) ?? 0;
+    this.broadcastMessage('route.saved', {
+      routeId,
+      rev,
+      href,
+      saved: true,
+      dirty: false
     });
   }
 
@@ -646,12 +714,21 @@ export class PlotterExtensionService {
       route.description = opts.description;
     }
     let savedId: string | null;
-    if (opts.dialog) {
+    if (buf.href) {
+      // Backed by an existing resource — update it in place (keep its id).
+      try {
+        await this.skres.putToServer('routes', buf.href, route);
+        savedId = buf.href;
+      } catch (err) {
+        this.app.parseHttpErrorResponse(err);
+        savedId = null;
+      }
+    } else if (opts.dialog) {
       // Interactive: open the Route Details dialog (prefilled) so the user
       // names it. Returns null if they cancel.
       savedId = await this.skres.saveNewRoute(route);
     } else {
-      // Headless: persist directly with the supplied (or buffer) name.
+      // Headless create: persist directly with the supplied (or buffer) name.
       try {
         const rte = await this.skres.postToServer('routes', route);
         savedId = rte.id;
@@ -663,8 +740,9 @@ export class PlotterExtensionService {
     if (!savedId) {
       return null;
     }
-    // Keep the route in the visible set under the same routeId, now saved+clean.
-    const rev = this.routeRegistry.markSaved(routeId) ?? buf.rev + 1;
+    // Keep the route in the visible set under the same routeId, now saved+clean,
+    // recording the backing resource id for subsequent saves.
+    const rev = this.routeRegistry.markSaved(routeId, savedId) ?? buf.rev + 1;
     this.broadcastMessage('route.saved', {
       routeId,
       rev,

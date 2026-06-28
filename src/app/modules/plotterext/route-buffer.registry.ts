@@ -16,6 +16,9 @@ export interface RouteBuffer {
   saved: boolean;
   /** Whether the in-memory route has pending unsaved changes. */
   dirty: boolean;
+  /** Backing routes-resource id when saved (the resource this route persists
+   *  to). Undefined for a never-saved draft. */
+  href?: string;
   points: RoutePoint[];
 }
 
@@ -84,6 +87,41 @@ export class RouteBufferRegistry {
     return this.snapshot(buffer);
   }
 
+  /**
+   * Bring a stored route into the visible set as an addressable, saved + clean
+   * entry (or refresh an existing entry's geometry). `href` is the backing
+   * routes-resource id. Emits `visible` (`saved:true, dirty:false`).
+   */
+  show(opts: {
+    routeId: string;
+    name?: string | null;
+    points?: RoutePoint[];
+    href: string;
+  }): RouteBuffer {
+    const existing = this.buffers.get(opts.routeId);
+    const buffer: RouteBuffer = {
+      routeId: opts.routeId,
+      name: opts.name ?? existing?.name ?? null,
+      rev: existing ? existing.rev + 1 : 1,
+      saved: true,
+      dirty: false,
+      href: opts.href,
+      points: (opts.points ?? []).map((p) => this.clonePoint(p))
+    };
+    this.buffers.set(opts.routeId, buffer);
+    this.refreshLive();
+    this.events.next({
+      type: 'visible',
+      routeId: buffer.routeId,
+      rev: buffer.rev,
+      name: buffer.name,
+      pointCount: buffer.points.length,
+      saved: true,
+      dirty: false
+    });
+    return this.snapshot(buffer);
+  }
+
   /** Snapshot of a buffer, or undefined if no buffer has that id. */
   get(routeId: string): RouteBuffer | undefined {
     const b = this.buffers.get(routeId);
@@ -132,7 +170,7 @@ export class RouteBufferRegistry {
    * `rev`, or undefined if no route has that id. Does not emit — the host
    * service broadcasts `route.saved` (it owns the resource `href`).
    */
-  markSaved(routeId: string): number | undefined {
+  markSaved(routeId: string, href?: string): number | undefined {
     const b = this.buffers.get(routeId);
     if (!b) {
       return undefined;
@@ -140,6 +178,9 @@ export class RouteBufferRegistry {
     b.rev += 1;
     b.saved = true;
     b.dirty = false;
+    if (href !== undefined) {
+      b.href = href;
+    }
     this.refreshLive();
     return b.rev;
   }
@@ -213,6 +254,7 @@ export class RouteBufferRegistry {
       rev: b.rev,
       saved: b.saved,
       dirty: b.dirty,
+      ...(b.href !== undefined ? { href: b.href } : {}),
       points: b.points.map((p) => this.clonePoint(p))
     };
   }

@@ -98,6 +98,29 @@ describe('RouteBufferRegistry', () => {
     });
   });
 
+  it('show() adds a saved+clean addressable route with an href, emitting visible', () => {
+    const reg = new RouteBufferRegistry();
+    const seen: RouteRegistryEvent[] = [];
+    reg.events$.subscribe((e) => seen.push(e));
+    const b = reg.show({
+      routeId: 'res-1',
+      name: 'Stored',
+      points: [{ position: [0, 0] }, { position: [1, 1] }],
+      href: 'res-1'
+    });
+    expect(b.saved).toBe(true);
+    expect(b.dirty).toBe(false);
+    expect(b.href).toBe('res-1');
+    expect(reg.get('res-1')?.points).toHaveLength(2);
+    expect(seen[0]).toMatchObject({
+      type: 'visible',
+      routeId: 'res-1',
+      saved: true,
+      dirty: false,
+      pointCount: 2
+    });
+  });
+
   it('markSaved flips a draft to saved+clean, keeping it addressable', () => {
     const reg = new RouteBufferRegistry();
     const { routeId } = reg.create({
