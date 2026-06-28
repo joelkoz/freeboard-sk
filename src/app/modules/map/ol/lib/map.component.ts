@@ -13,6 +13,7 @@ import {
   SimpleChanges
 } from '@angular/core';
 import { Map, MapBrowserEvent } from 'ol';
+import { Modify } from 'ol/interaction';
 import MapEvent from 'ol/MapEvent';
 import ObjectEvent from 'ol/Object';
 import RenderEvent from 'ol/render/Event';
@@ -234,10 +235,26 @@ export class MapComponent implements OnInit, OnDestroy {
     this.evCache = {};
   };
   private touchHold = () => {
-    if (Object.keys(this.evCache).length === 1) {
-      this.mapContextMenu.emit(Object.values(this.evCache)[0] as any);
-      this.rightClickHandler(Object.values(this.evCache)[0]);
+    if (Object.keys(this.evCache).length !== 1) {
+      return;
     }
+    const src = Object.values(this.evCache)[0];
+    // During a Modify interaction a touch long-press deletes the vertex under
+    // the finger — parity with Ctrl-Click for touch/tablet users. OL 10 delivers
+    // no `contextmenu` event for touch, so drive Modify.removePoint() directly
+    // at the press location.
+    const coord = this.map.getEventCoordinate(src);
+    let removed = false;
+    this.map.getInteractions().forEach((i) => {
+      if (!removed && i instanceof Modify && i.getActive()) {
+        removed = i.removePoint(coord);
+      }
+    });
+    if (removed) {
+      return;
+    }
+    this.mapContextMenu.emit(src as any);
+    this.rightClickHandler(src);
   };
   private pointerDownHandler = (event) => {
     this.evCache[event.pointerId] = event;
