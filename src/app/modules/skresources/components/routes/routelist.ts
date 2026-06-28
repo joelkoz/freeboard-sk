@@ -2,6 +2,7 @@ import {
   Component,
   ChangeDetectionStrategy,
   signal,
+  computed,
   effect,
   inject,
   output,
@@ -66,7 +67,13 @@ export class RouteListComponent extends ResourceListBase {
 
   protected override fullList: FBRoutes = [];
   protected override filteredList = signal<FBRoutes>([]);
-  disableRefresh = false;
+  /** Disable list/visibility actions while a route is being edited. Reactive
+   *  (computed from the editingRouteId signal input) so it re-enables the moment
+   *  editing ends — ngOnChanges does not fire for signal-input changes. */
+  disableRefresh = computed(
+    () =>
+      !!this.editingRouteId() && this.editingRouteId().indexOf('route') !== -1
+  );
 
   protected app = inject(AppFacade);
   private worker = inject(SKWorkerService);
@@ -90,8 +97,6 @@ export class RouteListComponent extends ResourceListBase {
 
   ngOnChanges() {
     this.initItems();
-    this.disableRefresh =
-      this.editingRouteId() && this.editingRouteId().indexOf('route') !== -1;
   }
 
   /**

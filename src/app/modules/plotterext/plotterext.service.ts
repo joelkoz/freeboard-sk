@@ -750,6 +750,9 @@ export class PlotterExtensionService {
       saved: true,
       dirty: false
     });
+    // The route is persisted and no longer being edited — clear the editing
+    // marker so the route-list visibility checkboxes are not left disabled.
+    this.app.data.editingId = '';
     return { href: savedId, rev };
   }
 
