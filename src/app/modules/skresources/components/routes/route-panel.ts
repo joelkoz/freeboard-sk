@@ -22,6 +22,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { RemarkModule } from 'ngx-remark';
 
 import { AppFacade } from 'src/app/app.facade';
+import { InfoPanelFacade } from 'src/app/modules/info-panel/info-panel.facade';
 import { AppIconDef, getResourceIcon } from 'src/app/modules/icons';
 import { SKRoute } from '../../resource-classes';
 import { SKResourceService } from '../../resources.service';
@@ -95,6 +96,7 @@ export class RoutePanel {
   protected app = inject(AppFacade);
   private skres = inject(SKResourceService);
   private routeBuffers = inject(RouteBufferRegistry);
+  private infoPanel = inject(InfoPanelFacade);
   private course = inject(CourseService);
   protected skgroups = inject(SKResourceGroupService);
   private dialog = inject(MatDialog);
@@ -256,14 +258,19 @@ export class RoutePanel {
     if (b && !b.saved) {
       // Unsaved draft — just discard the live buffer.
       this.routeBuffers.delete(this.id());
-      return;
+    } else {
+      // Saved route (clean or dirty) — delete the stored resource, dropping any
+      // live buffer too.
+      if (b) {
+        this.routeBuffers.delete(this.id());
+      }
+      this.skres.deleteRoute(this.id());
     }
-    // Saved route (clean or dirty) — delete the stored resource, dropping any
-    // live buffer too.
-    if (b) {
-      this.routeBuffers.delete(this.id());
-    }
-    this.skres.deleteRoute(this.id());
+    // The route no longer exists — close the panel so its now-stale actions
+    // (Save/Edit/Start…) don't linger. A draft delete fires no server delta, so
+    // closing here is the only trigger; for a saved route this just makes the
+    // close immediate rather than waiting on the delete delta round-trip.
+    this.infoPanel.close();
   }
 
   protected onPanTo() {
