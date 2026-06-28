@@ -28,7 +28,7 @@ import * as uuid from 'uuid';
 import { AppFacade } from 'src/app/app.facade';
 import { SKResourceService } from 'src/app/modules/skresources/resources.service';
 import { MapService } from 'src/app/modules/map/ol/lib/map.service';
-import { FBNotes } from 'src/app/types';
+import { FBNotes, LineString } from 'src/app/types';
 import {
   HostConnection,
   MethodHandler,
@@ -614,7 +614,37 @@ export class PlotterExtensionService {
 
   /** Host API handlers for the `routes` capability. */
   private routeMethods(): Record<string, MethodHandler> {
-    return createRouteMethods(this.routeRegistry);
+    return createRouteMethods(this.routeRegistry, {
+      onSave: (routeId) => this.saveBuffer(routeId)
+    });
+  }
+
+  /**
+   * Persist a live route buffer to the `routes` resource through the host's
+   * naming dialog, emit `route.saved`, then discard the buffer (it becomes a
+   * stored route). Resolves with `{ href, rev }` on save, or null if the user
+   * cancelled. Shared by the `route.save` host method and the FSK info-panel
+   * "Save" action so both behave identically.
+   */
+  async saveBuffer(
+    routeId: string
+  ): Promise<{ href: string; rev: number } | null> {
+    const buf = this.routeRegistry.get(routeId);
+    if (!buf) {
+      return null;
+    }
+    const [, route] = this.skres.buildRoute(
+      buf.points.map((p) => p.position) as LineString
+    );
+    route.name = buf.name ?? '';
+    const savedId = await this.skres.saveNewRoute(route);
+    if (!savedId) {
+      return null;
+    }
+    const rev = buf.rev + 1;
+    this.broadcastMessage('route.saved', { routeId, rev, href: savedId });
+    this.routeRegistry.delete(routeId);
+    return { href: savedId, rev };
   }
 
   /** Fetch manifests. Called after the server connection is established. */

@@ -13,10 +13,22 @@ import { RouteBufferRegistry } from './route-buffer.registry';
  * service spreads the result into each extension context's method table
  * (matching the existing `stateMethods` / `resourcesMethods` pattern).
  *
- * Point operations, replace/rename and save extend this surface in later slices.
+ * Point operations and rename extend this surface in later slices.
  */
+
+/**
+ * Persist a buffer to the routes resource. The host owns the UX (e.g. a naming
+ * dialog) and the server write; resolves with the stored resource href. Injected
+ * because persistence is host-specific (the registry is pure data).
+ */
+export type RouteSaveHandler = (
+  routeId: string,
+  params: { name?: string; description?: string }
+) => Promise<{ href: string; rev: number } | null>;
+
 export function createRouteMethods(
-  registry: RouteBufferRegistry
+  registry: RouteBufferRegistry,
+  opts: { onSave?: RouteSaveHandler } = {}
 ): Record<string, MethodHandler> {
   const requireRouteId = (params: unknown): string => {
     const routeId = (params as { routeId?: unknown } | null)?.routeId;
@@ -52,6 +64,29 @@ export function createRouteMethods(
         throw unknownId();
       }
       return { rev: updated.rev };
+    },
+
+    'route.save': async (params) => {
+      const routeId = requireRouteId(params);
+      if (!registry.has(routeId)) {
+        throw unknownId();
+      }
+      if (!opts.onSave) {
+        throw new RpcError('This host cannot persist routes', {
+          reason: 'routes.notSupported'
+        });
+      }
+      const { name, description } = (params ?? {}) as {
+        name?: string;
+        description?: string;
+      };
+      const result = await opts.onSave(routeId, { name, description });
+      if (!result) {
+        throw new RpcError('Route save was cancelled', {
+          reason: 'routes.saveCancelled'
+        });
+      }
+      return result;
     },
 
     'route.get': (params) => {

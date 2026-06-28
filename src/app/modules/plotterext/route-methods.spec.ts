@@ -94,4 +94,37 @@ describe('route methods (host handlers)', () => {
       call('route.replace', { routeId: 'nope', points: [] })
     ).rejects.toHaveProperty('reason', 'routes.unknownId');
   });
+  it('route.save delegates to onSave and returns its result', async () => {
+    const registry = new RouteBufferRegistry();
+    const seen: string[] = [];
+    const methods = createRouteMethods(registry, {
+      onSave: async (routeId) => {
+        seen.push(routeId);
+        return { href: 'routes/abc', rev: 5 };
+      }
+    });
+    const { routeId } = registry.create({ name: 'A' });
+    const res = await methods['route.save']({ routeId }, {} as never);
+    expect(res).toEqual({ href: 'routes/abc', rev: 5 });
+    expect(seen).toEqual([routeId]);
+  });
+
+  it('route.save without an onSave handler rejects routes.notSupported', async () => {
+    const registry = new RouteBufferRegistry();
+    const methods = createRouteMethods(registry);
+    const { routeId } = registry.create();
+    await expect(
+      (async () => methods['route.save']({ routeId }, {} as never))()
+    ).rejects.toHaveProperty('reason', 'routes.notSupported');
+  });
+
+  it('route.save on an unknown id rejects routes.unknownId', async () => {
+    const registry = new RouteBufferRegistry();
+    const methods = createRouteMethods(registry, {
+      onSave: async () => ({ href: 'x', rev: 1 })
+    });
+    await expect(
+      (async () => methods['route.save']({ routeId: 'nope' }, {} as never))()
+    ).rejects.toHaveProperty('reason', 'routes.unknownId');
+  });
 });

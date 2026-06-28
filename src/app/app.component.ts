@@ -1803,18 +1803,12 @@ export class AppComponent {
    * Cancelling the dialog leaves the buffer unsaved.
    */
   protected async saveRouteBuffer(bufferId: string) {
-    const buf = this.routeBuffers.get(bufferId);
-    if (!buf) {
-      return;
-    }
-    const [, route] = this.skres.buildRoute(
-      buf.points.map((p) => p.position) as LineString
-    );
-    route.name = buf.name ?? '';
-    const savedId = await this.skres.saveNewRoute(route);
-    if (savedId) {
-      this.routeBuffers.delete(bufferId);
-      this.infoPanel.open('routes', savedId);
+    // The shared save bridge handles the naming dialog, the server write,
+    // the route.saved event and discarding the buffer; we just re-open the
+    // info panel on the now-saved route so its action becomes "Edit".
+    const result = await this.plotterExt.saveBuffer(bufferId);
+    if (result) {
+      this.infoPanel.open('routes', result.href);
     }
   }
 
