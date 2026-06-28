@@ -309,6 +309,12 @@ export class ResourcePopoverComponent {
         this.type() === 'route' || this.type() === 'region' ? 'MODIFY' : 'MOVE';
       // Save shortcut: only for an unsaved route (host-decided via canSave).
       this.ctrl.showSaveButton = this.type() === 'route' && this.canSave();
+      if (this.ctrl.showSaveButton) {
+        // Unsaved draft: also offer a quick Delete (discard) shortcut, and hide
+        // Start — navigating a route that isn't persisted doesn't work.
+        this.ctrl.showDeleteButton = true;
+        this.ctrl.canActivate = false;
+      }
     });
   }
 

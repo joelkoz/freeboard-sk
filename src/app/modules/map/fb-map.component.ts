@@ -1828,15 +1828,21 @@ export class FBMapComponent implements OnInit, OnDestroy {
       case 'waypoint':
         this.skres.deleteWaypoint(id);
         break;
-      case 'route':
-        // Discard an unsaved live buffer locally; only saved routes are
-        // deleted from the server.
-        if (this.routeBuffers.has(id)) {
+      case 'route': {
+        const b = this.routeBuffers.get(id);
+        if (b && !b.saved) {
+          // Unsaved draft — discard the live buffer locally.
           this.routeBuffers.delete(id);
         } else {
+          // Saved route (clean or dirty, with or without a buffer) — delete the
+          // stored resource, dropping any live buffer too.
+          if (b) {
+            this.routeBuffers.delete(id);
+          }
           this.skres.deleteRoute(id);
         }
         break;
+      }
       case 'note':
         this.skres.deleteNote(id);
         break;
