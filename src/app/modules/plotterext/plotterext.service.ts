@@ -596,33 +596,62 @@ export class PlotterExtensionService {
    * and hide mirrors of routes no longer displayed that have no pending edits
    * (emits `route.hidden saved:true`). Drafts and dirty edits are left alone.
    */
+  /** Build RoutePoints from a route's geometry + coordinatesMeta, carrying each
+   *  point's name AND description so they survive a round-trip through the
+   *  registry and back into coordinatesMeta on save. */
+  private pointsFromRoute(
+    coords: Position[],
+    meta?: Array<{ name?: string; description?: string }>
+  ): RoutePoint[] {
+    return coords.map((position, i) => ({
+      position,
+      ...(meta?.[i]?.name ? { name: meta[i].name } : {}),
+      ...(meta?.[i]?.description ? { description: meta[i].description } : {})
+    }));
+  }
+
+  /** Deep-compare two point lists (position + name + description) so a
+   *  same-length geometry/metadata edit is still detected as a change. */
+  private pointsEqual(a: RoutePoint[], b: RoutePoint[]): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+    return a.every((p, i) => {
+      const q = b[i];
+      return (
+        p.position[0] === q.position[0] &&
+        p.position[1] === q.position[1] &&
+        (p.name ?? null) === (q.name ?? null) &&
+        (p.description ?? null) === (q.description ?? null)
+      );
+    });
+  }
+
   private syncVisibleFromSelections(): void {
     const displayed = this.skres.routes();
     const displayedHrefs = new Set(displayed.map((r) => r[0]));
     for (const [id, route] of displayed) {
       const coords = (route.feature?.geometry?.coordinates ?? []) as Position[];
       const meta = route.feature?.properties?.coordinatesMeta as
-        | Array<{ name?: string }>
+        | Array<{ name?: string; description?: string }>
         | undefined;
-      const points: RoutePoint[] = coords.map((position, i) => ({
-        position,
-        ...(meta?.[i]?.name ? { name: meta[i].name } : {})
-      }));
-      const mirror = this.routeRegistry.get(id);
-      if (this.routeRegistry.hasHref(id)) {
-        // Already represented. Refresh our own clean mirror (keyed by the
-        // resource id) when the backing route changed server-side; never clobber
-        // a draft or a buffer with pending edits.
+      const points = this.pointsFromRoute(coords, meta);
+      // Resolve by href, not routeId: a draft saved via route.save keeps its
+      // original (draft) routeId while its href points at the new resource, so
+      // get(id) can be undefined while a buffer for this resource exists.
+      const mirror = this.routeRegistry.getByHref(id);
+      if (mirror) {
+        // Refresh our own clean mirror when the backing route changed
+        // server-side; never clobber a draft or a buffer with pending edits.
         const stale =
-          mirror &&
           mirror.saved &&
           !mirror.dirty &&
-          (mirror.points.length !== points.length ||
-            (mirror.name ?? null) !== (route.name ?? null) ||
-            (mirror.description ?? null) !== (route.description ?? null));
+          ((mirror.name ?? null) !== (route.name ?? null) ||
+            (mirror.description ?? null) !== (route.description ?? null) ||
+            !this.pointsEqual(mirror.points, points));
         if (stale) {
           this.routeRegistry.show({
-            routeId: id,
+            routeId: mirror.routeId,
             name: route.name ?? null,
             description: route.description ?? null,
             points,
@@ -743,6 +772,12 @@ export class PlotterExtensionService {
    * route exists.
    */
   async showRoute(ref: string): Promise<{ routeId: string; rev: number }> {
+    // Already mirrored (a displayed route, or shown before)? Return the existing
+    // buffer rather than creating a duplicate for the same resource.
+    const existing = this.routeRegistry.getByHref(ref);
+    if (existing) {
+      return { routeId: existing.routeId, rev: existing.rev };
+    }
     this.skres.selectionAdd('routes', ref);
     await this.skres.refreshRoutes();
     const cached = this.skres.fromCache('routes', ref);
@@ -754,12 +789,9 @@ export class PlotterExtensionService {
     const route = cached[1];
     const coords = (route.feature?.geometry?.coordinates ?? []) as Position[];
     const meta = route.feature?.properties?.coordinatesMeta as
-      | Array<{ name?: string }>
+      | Array<{ name?: string; description?: string }>
       | undefined;
-    const points: RoutePoint[] = coords.map((position, i) => ({
-      position,
-      ...(meta?.[i]?.name ? { name: meta[i].name } : {})
-    }));
+    const points = this.pointsFromRoute(coords, meta);
     const buf = this.routeRegistry.show({
       routeId: ref,
       name: route.name ?? null,
@@ -783,7 +815,7 @@ export class PlotterExtensionService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     coordsMetadata?: Array<any>
   ): Promise<void> {
-    const points: RoutePoint[] = coords.map((position) => ({ position }));
+    const points = this.pointsFromRoute(coords, coordsMetadata);
     let buf = this.routeRegistry.get(routeId);
     if (!buf) {
       const cached = this.skres.fromCache('routes', routeId);
@@ -856,7 +888,11 @@ export class PlotterExtensionService {
         savedId = buf.href;
       } catch (err) {
         this.app.parseHttpErrorResponse(err);
-        savedId = null;
+        // A server rejection is a real failure, not a user cancel — surface it
+        // so route.save reports routes.saveFailed instead of routes.saveCancelled.
+        throw new RpcError('Failed to save route', {
+          reason: 'routes.saveFailed'
+        });
       }
     } else if (opts.dialog) {
       // Interactive: open the Route Details dialog (prefilled) so the user
@@ -872,10 +908,13 @@ export class PlotterExtensionService {
         this.skres.selectionAdd('routes', savedId);
       } catch (err) {
         this.app.parseHttpErrorResponse(err);
-        savedId = null;
+        throw new RpcError('Failed to save route', {
+          reason: 'routes.saveFailed'
+        });
       }
     }
     if (!savedId) {
+      // Only the interactive dialog path returns null — the user cancelled.
       return null;
     }
     // Keep the route in the visible set under the same routeId, now saved+clean,

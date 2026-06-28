@@ -66,6 +66,33 @@ export function createRouteMethods(
   const unknownId = () =>
     new RpcError('Unknown route buffer', { reason: 'routes.unknownId' });
 
+  // A route needs at least two points, and every point must be a numeric
+  // [lon, lat] tuple — otherwise the registry blows up in clonePoint() and the
+  // caller sees an internal error instead of routes.badRequest.
+  const requireValidPoints = (points: unknown): RoutePoint[] => {
+    if (!Array.isArray(points) || points.length < 2) {
+      throw new RpcError('a route needs at least two points', {
+        code: RPC_ERRORS.INVALID_PARAMS,
+        reason: 'routes.badRequest'
+      });
+    }
+    for (const p of points) {
+      const pos = (p as RoutePoint)?.position;
+      if (
+        !Array.isArray(pos) ||
+        pos.length < 2 ||
+        !Number.isFinite(pos[0]) ||
+        !Number.isFinite(pos[1])
+      ) {
+        throw new RpcError(
+          'each route point needs a numeric [lon, lat] position',
+          { code: RPC_ERRORS.INVALID_PARAMS, reason: 'routes.badRequest' }
+        );
+      }
+    }
+    return points as RoutePoint[];
+  };
+
   return {
     'route.list': () => ({ routes: registry.list() }),
 
@@ -75,29 +102,18 @@ export function createRouteMethods(
         description?: string;
         points?: RoutePoint[];
       };
-      // A route needs at least two points to define a segment.
-      if (!Array.isArray(points) || points.length < 2) {
-        throw new RpcError('a route needs at least two points', {
-          code: RPC_ERRORS.INVALID_PARAMS,
-          reason: 'routes.badRequest'
-        });
-      }
-      const buffer = registry.create({ name, description, points });
+      const validPoints = requireValidPoints(points);
+      const buffer = registry.create({ name, description, points: validPoints });
       return { routeId: buffer.routeId, rev: buffer.rev };
     },
 
     'route.replace': (params) => {
       const routeId = requireRouteId(params);
       const { points } = (params ?? {}) as { points?: RoutePoint[] };
-      // Same two-point invariant as route.create — never let a replace wipe a
-      // route down to an invalid geometry.
-      if (!Array.isArray(points) || points.length < 2) {
-        throw new RpcError('a route needs at least two points', {
-          code: RPC_ERRORS.INVALID_PARAMS,
-          reason: 'routes.badRequest'
-        });
-      }
-      const updated = registry.replace(routeId, points);
+      // Same invariants as route.create — never let a replace wipe a route down
+      // to an invalid geometry or feed the registry malformed points.
+      const validPoints = requireValidPoints(points);
+      const updated = registry.replace(routeId, validPoints);
       if (!updated) {
         throw unknownId();
       }

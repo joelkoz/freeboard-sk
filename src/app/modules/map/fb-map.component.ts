@@ -913,6 +913,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
   private bufferToFBRoute(b: RouteBuffer): FBRoute {
     const rte = new SKRoute();
     rte.name = b.name ?? '';
+    rte.description = b.description ?? '';
     rte.feature.geometry.coordinates = b.points.map(
       (p) => p.position
     ) as LineString;
@@ -1845,9 +1846,10 @@ export class FBMapComponent implements OnInit, OnDestroy {
           this.routeBuffers.delete(id);
         } else {
           // Saved route (clean or dirty, with or without a buffer) — delete the
-          // stored resource, dropping any live buffer too.
+          // stored resource, dropping any live buffer too. hiddenSaved=false so
+          // the registry's hidden event reports a permanent delete, not a hide.
           if (b) {
-            this.routeBuffers.delete(id);
+            this.routeBuffers.delete(id, false);
           }
           this.skres.deleteRoute(id);
         }

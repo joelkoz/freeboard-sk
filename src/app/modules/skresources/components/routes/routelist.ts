@@ -71,8 +71,7 @@ export class RouteListComponent extends ResourceListBase {
    *  (computed from the editingRouteId signal input) so it re-enables the moment
    *  editing ends — ngOnChanges does not fire for signal-input changes. */
   disableRefresh = computed(
-    () =>
-      !!this.editingRouteId() && this.editingRouteId().indexOf('route') !== -1
+    () => this.editingRouteId()?.startsWith('route.') ?? false
   );
 
   protected app = inject(AppFacade);

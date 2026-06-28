@@ -1811,9 +1811,16 @@ export class AppComponent {
     // the route.saved event and discarding the buffer; we just re-open the
     // info panel on the now-saved route so its action becomes "Edit".
     // dialog: true — the FSK SAVE button always prompts for a name.
-    const result = await this.plotterExt.saveBuffer(bufferId, { dialog: true });
-    if (result) {
-      this.infoPanel.open('routes', result.href);
+    try {
+      const result = await this.plotterExt.saveBuffer(bufferId, {
+        dialog: true
+      });
+      if (result) {
+        this.infoPanel.open('routes', result.href);
+      }
+    } catch {
+      // saveBuffer already surfaced the server error via parseHttpErrorResponse;
+      // the buffer stays dirty so the user can retry.
     }
   }
 
@@ -1956,13 +1963,14 @@ export class AppComponent {
               // do not save
               if (r[0] === 'route') {
                 const buf = this.routeBuffers.get(r[1]);
-                if (buf && !buf.saved) {
-                  // Restore the draft: the Modify interaction moved the map
-                  // feature, but the buffer itself was never changed.
+                if (buf && (!buf.saved || buf.dirty)) {
+                  // Restore the draft (or dirty saved buffer): the Modify
+                  // interaction moved the map feature, but the buffer itself
+                  // was never changed.
                   this.routeBuffers.refresh();
                 } else {
-                  // Saved route — re-render from the resource to revert the
-                  // unsaved geometry move.
+                  // Clean saved route — re-render from the resource to revert
+                  // the unsaved geometry move.
                   this.skres.refreshRoutes();
                 }
               }

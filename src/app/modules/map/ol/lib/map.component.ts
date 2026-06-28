@@ -150,6 +150,9 @@ export class MapComponent implements OnInit, OnDestroy {
     if (!this.map) {
       return;
     }
+    // Cancel any pending long-press timer so touchHold cannot fire after the
+    // map is torn down (it dereferences this.map).
+    this.clearTouchTimer();
     this.map.un('singleclick', this.emitSingleClickEvent);
     this.map.un('dblclick', this.emitDblClickEvent);
     this.map.un('click', this.emitClickEvent);
@@ -256,6 +259,10 @@ export class MapComponent implements OnInit, OnDestroy {
     }
   };
   private touchHold = () => {
+    if (!this.map) {
+      // Destroyed before the timer fired.
+      return;
+    }
     if (Object.keys(this.evCache).length !== 1) {
       return;
     }

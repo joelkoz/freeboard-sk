@@ -193,6 +193,18 @@ describe('route methods (host handlers)', () => {
     );
   });
 
+  it('route.create rejects points without a numeric [lon, lat] position', async () => {
+    const { call } = setup();
+    await expect(
+      call('route.create', { points: [{}, {}] })
+    ).rejects.toHaveProperty('reason', 'routes.badRequest');
+    await expect(
+      call('route.create', {
+        points: [{ position: [0, 0] }, { position: ['x', 1] }]
+      })
+    ).rejects.toHaveProperty('reason', 'routes.badRequest');
+  });
+
   it('route.hide delegates to onHide when provided', async () => {
     const registry = new RouteBufferRegistry();
     const seen: string[] = [];

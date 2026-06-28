@@ -260,9 +260,10 @@ export class RoutePanel {
       this.routeBuffers.delete(this.id());
     } else {
       // Saved route (clean or dirty) — delete the stored resource, dropping any
-      // live buffer too.
+      // live buffer too. hiddenSaved=false so the registry's hidden event
+      // reports a permanent delete, not a hide.
       if (b) {
-        this.routeBuffers.delete(this.id());
+        this.routeBuffers.delete(this.id(), false);
       }
       this.skres.deleteRoute(this.id());
     }

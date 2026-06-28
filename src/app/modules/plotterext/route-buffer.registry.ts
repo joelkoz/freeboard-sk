@@ -147,12 +147,19 @@ export class RouteBufferRegistry {
   /** Whether any buffer is backed by the given resource id (href). Used to
    *  dedupe when mirroring the host's displayed routes into the visible set. */
   hasHref(href: string): boolean {
+    return this.getByHref(href) !== undefined;
+  }
+
+  /** Snapshot of the buffer backed by the given resource id (href), if any.
+   *  Resolves a draft-saved route by its backing resource even though it is
+   *  still keyed under its original (draft) routeId. */
+  getByHref(href: string): RouteBuffer | undefined {
     for (const b of this.buffers.values()) {
       if (b.href === href) {
-        return true;
+        return this.snapshot(b);
       }
     }
-    return false;
+    return undefined;
   }
 
   /** Non-reactive snapshot of every buffer (does not read the live() signal, so
