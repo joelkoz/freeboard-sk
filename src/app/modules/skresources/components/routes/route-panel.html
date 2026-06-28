@@ -111,9 +111,17 @@
         padding-top: 15px;
       "
     >
+      @if (isUnsaved()) {
+      <div
+        style="font-weight: bold; font-size: larger; padding-bottom: 5px; color: gray; font-style: italic"
+      >
+        (unsaved)
+      </div>
+      } @else {
       <div style="font-weight: bold; font-size: larger; padding-bottom: 5px">
         {{_route()?.name}}
       </div>
+      }
     </div>
   </div>
 
@@ -147,7 +155,7 @@
           <button
             matIconButton
             matTooltip="Re-order points"
-            [disabled]="interacting()"
+            [disabled]="interacting() || isUnsaved()"
             (click)="arrangePoints()"
           >
             <mat-icon>import_export</mat-icon>
@@ -172,7 +180,7 @@
             <button
               matIconButton
               matTooltip="Start here"
-              [disabled]="interacting()"
+              [disabled]="interacting() || isUnsaved()"
               (click)="onGoto(point.index)"
             >
               <mat-icon>near_me</mat-icon>
@@ -199,7 +207,7 @@
           <button
             matIconButton
             matTooltip="Add Note"
-            [disabled]="interacting()"
+            [disabled]="interacting() || isUnsaved()"
             (click)="addNote()"
           >
             <mat-icon>add</mat-icon>
@@ -229,7 +237,7 @@
           <button
             matIconButton
             matTooltip="Add to Group"
-            [disabled]="interacting()"
+            [disabled]="interacting() || isUnsaved()"
             (click)="addToGroup()"
           >
             <mat-icon>add</mat-icon>
