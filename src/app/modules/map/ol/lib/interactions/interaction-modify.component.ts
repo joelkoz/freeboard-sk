@@ -58,7 +58,9 @@ export class InteractionModifyComponent {
           // map.component; consume it on the click/release. OL 10 emits no
           // contextmenu event for touch, so this is the only delete path there.
           if (
-            (e.type === 'singleclick' || e.type === 'click') &&
+            (e.type === 'pointerup' ||
+              e.type === 'singleclick' ||
+              e.type === 'click') &&
             e.map.get('vertexDeleteOnRelease')
           ) {
             e.map.set('vertexDeleteOnRelease', false);

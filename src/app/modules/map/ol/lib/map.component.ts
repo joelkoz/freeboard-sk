@@ -230,27 +230,65 @@ export class MapComponent implements OnInit, OnDestroy {
   // Long Press Detection (iOS & Android)
   private touchTimer: any;
   private evCache: { [id: number]: MouseEvent } = {};
+  private touchStartXY: { x: number; y: number } | null = null;
   private clearTouchTimer = () => {
     clearTimeout(this.touchTimer);
     this.evCache = {};
+    this.touchStartXY = null;
+  };
+  /** Cancel the long-press only once the pointer has moved beyond a small
+   *  tolerance. A press inevitably jitters a few pixels (and a press on a
+   *  Modify vertex often emits an immediate pointermove/drag) — without this,
+   *  the hold was cancelled instantly and tap-hold never fired. */
+  private clearTimerIfMoved = (event: MapBrowserEvent<PointerEvent>) => {
+    if (!this.touchStartXY) {
+      return;
+    }
+    const oe = event.originalEvent;
+    if (
+      Math.hypot(
+        oe.clientX - this.touchStartXY.x,
+        oe.clientY - this.touchStartXY.y
+      ) > 15
+    ) {
+      this.clearTouchTimer();
+      this.map.set('vertexDeleteOnRelease', false);
+    }
   };
   private touchHold = () => {
     if (Object.keys(this.evCache).length !== 1) {
       return;
     }
     const src = Object.values(this.evCache)[0];
-    // During a Modify interaction, a long-press deletes the vertex under the
-    // pointer when the press is released — parity with Ctrl-Click for
-    // touch/tablet users (OL 10 emits no contextmenu event for touch). We flag
-    // it on the map; the Modify deleteCondition removes the vertex on the
-    // following click/release (the same code path as Ctrl-Click). A drag cancels
-    // it (see emitPointerDragEvent), so a long-press-then-move still moves.
-    const modifying = this.map
+    // Tap-hold to remove a route vertex (touch/tablet parity with Ctrl-Click;
+    // OL 10 emits no contextmenu for touch). Flag a delete-on-release as the
+    // reliable fallback, then try to remove the grabbed vertex immediately
+    // (mid-hold, the way touch plotters work). removePoint() refuses if the last
+    // event was a drag, so replay a pointermove at the press point to clear that
+    // state first.
+    const modify = this.map
       .getInteractions()
       .getArray()
-      .some((i) => i instanceof Modify && i.getActive());
-    if (modifying) {
+      .find((i) => i instanceof Modify && i.getActive()) as Modify | undefined;
+    if (modify) {
       this.map.set('vertexDeleteOnRelease', true);
+      try {
+        this.map.getViewport().dispatchEvent(
+          new PointerEvent('pointermove', {
+            clientX: src.clientX,
+            clientY: src.clientY,
+            bubbles: true,
+            cancelable: true,
+            pointerId: (src as PointerEvent).pointerId ?? 1,
+            pointerType: (src as PointerEvent).pointerType ?? 'touch'
+          })
+        );
+        if (modify.removePoint()) {
+          this.map.set('vertexDeleteOnRelease', false);
+        }
+      } catch {
+        // Fall back to delete-on-release via the deleteCondition flag.
+      }
       return;
     }
     this.mapContextMenu.emit(src as any);
@@ -259,6 +297,7 @@ export class MapComponent implements OnInit, OnDestroy {
   private pointerDownHandler = (event) => {
     this.evCache[event.pointerId] = event;
     this.map.set('vertexDeleteOnRelease', false);
+    this.touchStartXY = { x: event.clientX, y: event.clientY };
     this.touchTimer = setTimeout(this.touchHold, 500);
     const c = toLonLat(this.map.getEventCoordinate(event));
     const e = Object.assign(event, { lonlat: c });
@@ -333,13 +372,13 @@ export class MapComponent implements OnInit, OnDestroy {
   }
 
   private emitPointerDragEvent = (event: MapBrowserEvent<PointerEvent>) => {
-    this.clearTouchTimer();
-    // Dragging after a long-press means "move the vertex", not delete it.
-    this.map.set('vertexDeleteOnRelease', false);
+    // Only a real move (beyond tolerance) cancels the hold / pending delete —
+    // a real drag means "move the vertex", a jitter does not.
+    this.clearTimerIfMoved(event);
     this.mapPointerDrag.emit(this.augmentPointerEvent(event));
   };
   private emitPointerMoveEvent = (event: MapBrowserEvent<PointerEvent>) => {
-    this.clearTouchTimer();
+    this.clearTimerIfMoved(event);
     this.mapPointerMove.emit(this.augmentPointerEvent(event));
   };
 
