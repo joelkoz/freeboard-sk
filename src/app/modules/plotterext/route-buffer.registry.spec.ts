@@ -136,6 +136,18 @@ describe('RouteBufferRegistry', () => {
     expect(reg.list().map((s) => s.routeId)).toContain(routeId);
   });
 
+  it('tracks a route-level description (create + markSaved updates it)', () => {
+    const reg = new RouteBufferRegistry();
+    const { routeId } = reg.create({
+      name: 'D',
+      description: 'around the shoal',
+      points: [{ position: [0, 0] }]
+    });
+    expect(reg.get(routeId)?.description).toBe('around the shoal');
+    reg.markSaved(routeId, 'routes/abc', 'D', 'updated note');
+    expect(reg.get(routeId)?.description).toBe('updated note');
+  });
+
   it('snapshots defensively — mutating a returned buffer does not affect the registry', () => {
     const reg = new RouteBufferRegistry();
     const { routeId } = reg.create({ points: [{ position: [1, 2] }] });

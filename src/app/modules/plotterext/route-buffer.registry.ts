@@ -10,6 +10,8 @@ import type { RoutePoint, RouteSummary } from 'signalk-plotterext-bus/host';
 export interface RouteBuffer {
   routeId: string;
   name: string | null;
+  /** Route-level description (distinct from a waypoint's per-point description). */
+  description: string | null;
   /** Monotonic revision; increments on every mutation. */
   rev: number;
   /** Whether the route is backed by a persisted routes resource. */
@@ -63,11 +65,14 @@ export class RouteBufferRegistry {
   readonly live = this.liveSignal.asReadonly();
 
   /** Create a new buffer, optionally seeded with a name and/or points. */
-  create(opts: { name?: string; points?: RoutePoint[] } = {}): RouteBuffer {
+  create(
+    opts: { name?: string; description?: string; points?: RoutePoint[] } = {}
+  ): RouteBuffer {
     const routeId = this.newRouteId();
     const buffer: RouteBuffer = {
       routeId,
       name: opts.name ?? null,
+      description: opts.description ?? null,
       rev: 1,
       saved: false,
       dirty: true,
@@ -95,6 +100,7 @@ export class RouteBufferRegistry {
   show(opts: {
     routeId: string;
     name?: string | null;
+    description?: string | null;
     points?: RoutePoint[];
     href: string;
   }): RouteBuffer {
@@ -102,6 +108,7 @@ export class RouteBufferRegistry {
     const buffer: RouteBuffer = {
       routeId: opts.routeId,
       name: opts.name ?? existing?.name ?? null,
+      description: opts.description ?? existing?.description ?? null,
       rev: existing ? existing.rev + 1 : 1,
       saved: true,
       dirty: false,
@@ -176,7 +183,8 @@ export class RouteBufferRegistry {
   markSaved(
     routeId: string,
     href?: string,
-    name?: string | null
+    name?: string | null,
+    description?: string | null
   ): number | undefined {
     const b = this.buffers.get(routeId);
     if (!b) {
@@ -190,6 +198,9 @@ export class RouteBufferRegistry {
     }
     if (name !== undefined) {
       b.name = name;
+    }
+    if (description !== undefined) {
+      b.description = description;
     }
     this.refreshLive();
     return b.rev;
@@ -261,6 +272,7 @@ export class RouteBufferRegistry {
     return {
       routeId: b.routeId,
       name: b.name,
+      description: b.description,
       rev: b.rev,
       saved: b.saved,
       dirty: b.dirty,

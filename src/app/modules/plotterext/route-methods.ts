@@ -70,8 +70,9 @@ export function createRouteMethods(
     'route.list': () => ({ routes: registry.list() }),
 
     'route.create': (params) => {
-      const { name, points } = (params ?? {}) as {
+      const { name, description, points } = (params ?? {}) as {
         name?: string;
+        description?: string;
         points?: RoutePoint[];
       };
       // A route needs at least two points to define a segment.
@@ -81,7 +82,7 @@ export function createRouteMethods(
           reason: 'routes.badRequest'
         });
       }
-      const buffer = registry.create({ name, points });
+      const buffer = registry.create({ name, description, points });
       return { routeId: buffer.routeId, rev: buffer.rev };
     },
 

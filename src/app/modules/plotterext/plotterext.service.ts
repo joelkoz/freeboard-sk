@@ -686,6 +686,7 @@ export class PlotterExtensionService {
     const buf = this.routeRegistry.show({
       routeId: ref,
       name: route.name ?? null,
+      description: route.description ?? null,
       points,
       href: ref
     });
@@ -710,7 +711,14 @@ export class PlotterExtensionService {
     if (!buf) {
       const cached = this.skres.fromCache('routes', routeId);
       const name = cached ? (cached[1].name ?? null) : null;
-      buf = this.routeRegistry.show({ routeId, name, points, href: routeId });
+      const description = cached ? (cached[1].description ?? null) : null;
+      buf = this.routeRegistry.show({
+        routeId,
+        name,
+        description,
+        points,
+        href: routeId
+      });
     } else {
       this.routeRegistry.replace(routeId, points);
       buf = this.routeRegistry.get(routeId);
@@ -782,7 +790,12 @@ export class PlotterExtensionService {
     // recording the backing resource id + the (possibly dialog-set) name.
     const savedName = route.name || null;
     const rev =
-      this.routeRegistry.markSaved(routeId, savedId, savedName) ?? buf.rev + 1;
+      this.routeRegistry.markSaved(
+        routeId,
+        savedId,
+        savedName,
+        route.description || null
+      ) ?? buf.rev + 1;
     this.broadcastMessage('route.saved', {
       routeId,
       rev,
