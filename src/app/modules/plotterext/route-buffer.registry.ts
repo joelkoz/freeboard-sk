@@ -12,26 +12,32 @@ export interface RouteBuffer {
   name: string | null;
   /** Monotonic revision; increments on every mutation. */
   rev: number;
-  /** Whether the buffer has been persisted to the routes resource collection. */
+  /** Whether the route is backed by a persisted routes resource. */
   saved: boolean;
+  /** Whether the in-memory route has pending unsaved changes. */
+  dirty: boolean;
   points: RoutePoint[];
 }
 
 /**
  * A registry mutation, surfaced on `events$`. The host bridges these to the
- * `route.*` bus events of the plotter-extensions `routes` capability. Point
- * mutations (`route.point.*`) extend this union in a later slice; `dirty` is
- * the conformance-floor catch-all.
+ * `route.*` bus events of the plotter-extensions `routes` capability
+ * (`visible`/`hidden`/`dirty`). Point mutations (`route.point.*`) extend this
+ * union in a later slice; `dirty` is the conformance-floor catch-all. The
+ * `route.saved` event is emitted by the host service (it owns the resource
+ * `href`), not via this stream.
  */
 export type RouteRegistryEvent =
   | {
-      type: 'created';
+      type: 'visible';
       routeId: string;
       rev: number;
       name: string | null;
       pointCount: number;
+      saved: boolean;
+      dirty: boolean;
     }
-  | { type: 'deleted'; routeId: string; rev: number }
+  | { type: 'hidden'; routeId: string; rev: number; saved: boolean }
   | { type: 'dirty'; routeId: string; rev: number; reason?: string };
 
 /**
@@ -61,16 +67,19 @@ export class RouteBufferRegistry {
       name: opts.name ?? null,
       rev: 1,
       saved: false,
+      dirty: true,
       points: (opts.points ?? []).map((p) => this.clonePoint(p))
     };
     this.buffers.set(routeId, buffer);
     this.refreshLive();
     this.events.next({
-      type: 'created',
+      type: 'visible',
       routeId,
       rev: buffer.rev,
       name: buffer.name,
-      pointCount: buffer.points.length
+      pointCount: buffer.points.length,
+      saved: buffer.saved,
+      dirty: buffer.dirty
     });
     return this.snapshot(buffer);
   }
@@ -86,28 +95,53 @@ export class RouteBufferRegistry {
     return this.buffers.has(routeId);
   }
 
-  /** Summaries of all live buffers. */
+  /** Summaries of all live routes (the visible set). */
   list(): RouteSummary[] {
     return [...this.buffers.values()].map((b) => ({
       routeId: b.routeId,
       name: b.name,
       rev: b.rev,
       pointCount: b.points.length,
-      saved: b.saved
+      saved: b.saved,
+      dirty: b.dirty
     }));
   }
 
-  /** Discard a buffer. Returns true if it existed. Emits `deleted`. */
+  /**
+   * Remove a route from the visible set. Returns true if it existed. Emits
+   * `hidden` carrying the route's `saved` flag: `saved:true` ⇒ a stored route
+   * was made invisible (the resource is untouched); `saved:false` ⇒ a draft was
+   * deleted.
+   */
   delete(routeId: string): boolean {
     const b = this.buffers.get(routeId);
     if (!b) {
       return false;
     }
     b.rev += 1;
+    const saved = b.saved;
     this.buffers.delete(routeId);
     this.refreshLive();
-    this.events.next({ type: 'deleted', routeId, rev: b.rev });
+    this.events.next({ type: 'hidden', routeId, rev: b.rev, saved });
     return true;
+  }
+
+  /**
+   * Mark a route persisted (`saved:true, dirty:false`) after a server write,
+   * keeping it in the visible set under the same `routeId`. Returns the new
+   * `rev`, or undefined if no route has that id. Does not emit — the host
+   * service broadcasts `route.saved` (it owns the resource `href`).
+   */
+  markSaved(routeId: string): number | undefined {
+    const b = this.buffers.get(routeId);
+    if (!b) {
+      return undefined;
+    }
+    b.rev += 1;
+    b.saved = true;
+    b.dirty = false;
+    this.refreshLive();
+    return b.rev;
   }
 
   /**
@@ -122,6 +156,7 @@ export class RouteBufferRegistry {
     }
     b.points = (points ?? []).map((p) => this.clonePoint(p));
     b.rev += 1;
+    b.dirty = true;
     this.refreshLive();
     this.events.next({
       type: 'dirty',
@@ -177,6 +212,7 @@ export class RouteBufferRegistry {
       name: b.name,
       rev: b.rev,
       saved: b.saved,
+      dirty: b.dirty,
       points: b.points.map((p) => this.clonePoint(p))
     };
   }

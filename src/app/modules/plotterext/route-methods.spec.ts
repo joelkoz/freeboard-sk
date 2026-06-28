@@ -35,6 +35,7 @@ describe('route methods (host handlers)', () => {
       name: 'A',
       rev: 1,
       saved: false,
+      dirty: true,
       points: []
     });
   });
@@ -47,10 +48,10 @@ describe('route methods (host handlers)', () => {
     expect(res.routes).toHaveLength(2);
   });
 
-  it('route.delete removes the buffer and returns {}', async () => {
+  it('route.hide removes the buffer and returns {}', async () => {
     const { call, registry } = setup();
     const { routeId } = (await call('route.create')) as { routeId: string };
-    const res = await call('route.delete', { routeId });
+    const res = await call('route.hide', { routeId });
     expect(res).toEqual({});
     expect(registry.has(routeId)).toBe(false);
   });
@@ -63,11 +64,18 @@ describe('route methods (host handlers)', () => {
     );
   });
 
-  it('route.delete on an unknown id rejects with routes.unknownId', async () => {
+  it('route.hide on an unknown id rejects with routes.unknownId', async () => {
     const { call } = setup();
     await expect(
-      call('route.delete', { routeId: 'nope' })
+      call('route.hide', { routeId: 'nope' })
     ).rejects.toHaveProperty('reason', 'routes.unknownId');
+  });
+
+  it('route.show is advertised but rejects routes.notSupported (host wiring pending)', async () => {
+    const { call } = setup();
+    await expect(
+      call('route.show', { ref: 'routes/abc' })
+    ).rejects.toHaveProperty('reason', 'routes.notSupported');
   });
 
   it('route.get without a routeId rejects', async () => {

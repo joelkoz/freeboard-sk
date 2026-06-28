@@ -69,9 +69,14 @@ export class RoutePanel {
   }>();
 
   protected _route = linkedSignal(() => this.route());
-  /** True when this id refers to an unsaved live edit buffer (not a stored
-   *  route): the panel shows "Save" instead of "Edit" and acts locally. */
-  protected isUnsaved = computed(() => this.routeBuffers.has(this.id()));
+  /** True when this id refers to a route with pending unsaved changes — a
+   *  never-saved draft or a stored route edited but not yet re-saved: the panel
+   *  shows "Save" instead of "Edit" and acts locally. A saved + clean buffer is
+   *  treated as a normal stored route (shows "Edit"). */
+  protected isUnsaved = computed(() => {
+    const b = this.routeBuffers.get(this.id());
+    return !!b && (!b.saved || b.dirty);
+  });
   protected notes = signal<FBNotes>([]);
   protected groups = signal<FBResourceGroups>([]);
   protected points = signal<
@@ -247,11 +252,18 @@ export class RoutePanel {
   }
 
   protected onDelete() {
-    if (this.routeBuffers.has(this.id())) {
+    const b = this.routeBuffers.get(this.id());
+    if (b && !b.saved) {
+      // Unsaved draft — just discard the live buffer.
       this.routeBuffers.delete(this.id());
-    } else {
-      this.skres.deleteRoute(this.id());
+      return;
     }
+    // Saved route (clean or dirty) — delete the stored resource, dropping any
+    // live buffer too.
+    if (b) {
+      this.routeBuffers.delete(this.id());
+    }
+    this.skres.deleteRoute(this.id());
   }
 
   protected onPanTo() {

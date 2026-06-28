@@ -16,6 +16,7 @@ describe('RouteBufferRegistry', () => {
     expect(b?.name).toBe('Test');
     expect(b?.rev).toBe(1);
     expect(b?.saved).toBe(false);
+    expect(b?.dirty).toBe(true);
     expect(b?.points).toHaveLength(1);
     expect(b?.points[0].position).toEqual([-80.1, 25.7]);
   });
@@ -42,7 +43,8 @@ describe('RouteBufferRegistry', () => {
       name: 'A',
       rev: 1,
       pointCount: 0,
-      saved: false
+      saved: false,
+      dirty: true
     });
   });
 
@@ -68,7 +70,7 @@ describe('RouteBufferRegistry', () => {
     expect(a.routeId).not.toBe(b.routeId);
   });
 
-  it('emits created then deleted with a monotonic rev', () => {
+  it('emits visible then hidden with a monotonic rev and flags', () => {
     const reg = new RouteBufferRegistry();
     const seen: RouteRegistryEvent[] = [];
     reg.events$.subscribe((e) => seen.push(e));
@@ -79,13 +81,36 @@ describe('RouteBufferRegistry', () => {
     reg.delete(routeId);
     expect(seen).toHaveLength(2);
     expect(seen[0]).toMatchObject({
-      type: 'created',
+      type: 'visible',
       routeId,
       rev: 1,
       name: 'X',
-      pointCount: 1
+      pointCount: 1,
+      saved: false,
+      dirty: true
     });
-    expect(seen[1]).toMatchObject({ type: 'deleted', routeId, rev: 2 });
+    // A draft hidden ⇒ deleted: saved:false.
+    expect(seen[1]).toMatchObject({
+      type: 'hidden',
+      routeId,
+      rev: 2,
+      saved: false
+    });
+  });
+
+  it('markSaved flips a draft to saved+clean, keeping it addressable', () => {
+    const reg = new RouteBufferRegistry();
+    const { routeId } = reg.create({
+      name: 'P',
+      points: [{ position: [0, 0] }]
+    });
+    const rev = reg.markSaved(routeId);
+    expect(rev).toBe(2);
+    const b = reg.get(routeId);
+    expect(b?.saved).toBe(true);
+    expect(b?.dirty).toBe(false);
+    // Still in the visible set under the same id.
+    expect(reg.list().map((s) => s.routeId)).toContain(routeId);
   });
 
   it('snapshots defensively — mutating a returned buffer does not affect the registry', () => {

@@ -98,11 +98,20 @@ export function createRouteMethods(
       return buffer;
     },
 
-    'route.delete': (params) => {
+    'route.hide': (params) => {
       if (!registry.delete(requireRouteId(params))) {
         throw unknownId();
       }
       return {};
+    },
+
+    // Bringing a stored route into the visible set requires loading it from the
+    // resources API and rendering it — host wiring not yet in place. Advertised
+    // so extensions get a clear reason rather than method-not-found.
+    'route.show': () => {
+      throw new RpcError('route.show is not yet implemented by this host', {
+        reason: 'routes.notSupported'
+      });
     }
   };
 }

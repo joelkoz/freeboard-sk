@@ -587,18 +587,21 @@ export class PlotterExtensionService {
   private bridgeRouteEvents(): void {
     this.routeRegistry.events$.subscribe((e) => {
       switch (e.type) {
-        case 'created':
-          this.broadcastMessage('route.created', {
+        case 'visible':
+          this.broadcastMessage('route.visible', {
             routeId: e.routeId,
             rev: e.rev,
             name: e.name,
-            pointCount: e.pointCount
+            pointCount: e.pointCount,
+            saved: e.saved,
+            dirty: e.dirty
           });
           break;
-        case 'deleted':
-          this.broadcastMessage('route.deleted', {
+        case 'hidden':
+          this.broadcastMessage('route.hidden', {
             routeId: e.routeId,
-            rev: e.rev
+            rev: e.rev,
+            saved: e.saved
           });
           break;
         case 'dirty':
@@ -620,11 +623,12 @@ export class PlotterExtensionService {
   }
 
   /**
-   * Persist a live route buffer to the `routes` resource through the host's
-   * naming dialog, emit `route.saved`, then discard the buffer (it becomes a
-   * stored route). Resolves with `{ href, rev }` on save, or null if the user
-   * cancelled. Shared by the `route.save` host method and the FSK info-panel
-   * "Save" action so both behave identically.
+   * Persist a live route to the `routes` resource, emit `route.saved`, and keep
+   * it in the visible set under the same `routeId` (now `saved:true,
+   * dirty:false`) — saving does not consume the route. Resolves with
+   * `{ href, rev }` on save, or null if the user cancelled. Shared by the
+   * `route.save` host method and the FSK info-panel "Save" action so both behave
+   * identically. Pass `dialog:true` to prompt for the name/description.
    */
   async saveBuffer(
     routeId: string,
@@ -659,9 +663,15 @@ export class PlotterExtensionService {
     if (!savedId) {
       return null;
     }
-    const rev = buf.rev + 1;
-    this.broadcastMessage('route.saved', { routeId, rev, href: savedId });
-    this.routeRegistry.delete(routeId);
+    // Keep the route in the visible set under the same routeId, now saved+clean.
+    const rev = this.routeRegistry.markSaved(routeId) ?? buf.rev + 1;
+    this.broadcastMessage('route.saved', {
+      routeId,
+      rev,
+      href: savedId,
+      saved: true,
+      dirty: false
+    });
     return { href: savedId, rev };
   }
 

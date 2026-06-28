@@ -250,7 +250,12 @@ export class FBMapComponent implements OnInit, OnDestroy {
   // layer in the amber draft style.
   protected draftRouteStyles = routeDraftStyles;
   protected bufferRoutes = computed<FBRoutes>(() =>
-    this.routeBuffers.live().map((b) => this.bufferToFBRoute(b))
+    this.routeBuffers
+      .live()
+      // A saved + clean route renders from the resource layer (green); only
+      // unsaved or dirty routes get the amber draft styling.
+      .filter((b) => !b.saved || b.dirty)
+      .map((b) => this.bufferToFBRoute(b))
   );
 
   // ** map feature data
