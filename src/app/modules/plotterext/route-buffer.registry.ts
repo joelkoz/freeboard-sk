@@ -173,7 +173,11 @@ export class RouteBufferRegistry {
    * `rev`, or undefined if no route has that id. Does not emit — the host
    * service broadcasts `route.saved` (it owns the resource `href`).
    */
-  markSaved(routeId: string, href?: string): number | undefined {
+  markSaved(
+    routeId: string,
+    href?: string,
+    name?: string | null
+  ): number | undefined {
     const b = this.buffers.get(routeId);
     if (!b) {
       return undefined;
@@ -183,6 +187,9 @@ export class RouteBufferRegistry {
     b.dirty = false;
     if (href !== undefined) {
       b.href = href;
+    }
+    if (name !== undefined) {
+      b.name = name;
     }
     this.refreshLive();
     return b.rev;

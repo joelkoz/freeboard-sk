@@ -722,6 +722,7 @@ export class PlotterExtensionService {
       routeId,
       rev,
       href,
+      name: buf?.name ?? null,
       saved: true,
       dirty: false
     });
@@ -778,12 +779,15 @@ export class PlotterExtensionService {
       return null;
     }
     // Keep the route in the visible set under the same routeId, now saved+clean,
-    // recording the backing resource id for subsequent saves.
-    const rev = this.routeRegistry.markSaved(routeId, savedId) ?? buf.rev + 1;
+    // recording the backing resource id + the (possibly dialog-set) name.
+    const savedName = route.name || null;
+    const rev =
+      this.routeRegistry.markSaved(routeId, savedId, savedName) ?? buf.rev + 1;
     this.broadcastMessage('route.saved', {
       routeId,
       rev,
       href: savedId,
+      name: savedName,
       saved: true,
       dirty: false
     });
