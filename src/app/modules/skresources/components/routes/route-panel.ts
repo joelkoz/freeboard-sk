@@ -1,5 +1,6 @@
 import {
   Component,
+  computed,
   DestroyRef,
   effect,
   inject,
@@ -8,6 +9,7 @@ import {
   output,
   signal
 } from '@angular/core';
+import { RouteBufferRegistry } from 'src/app/modules/plotterext/route-buffer.registry';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -67,6 +69,9 @@ export class RoutePanel {
   }>();
 
   protected _route = linkedSignal(() => this.route());
+  /** True when this id refers to an unsaved live edit buffer (not a stored
+   *  route): the panel shows "Save" instead of "Edit" and acts locally. */
+  protected isUnsaved = computed(() => this.routeBuffers.has(this.id()));
   protected notes = signal<FBNotes>([]);
   protected groups = signal<FBResourceGroups>([]);
   protected points = signal<
@@ -84,6 +89,7 @@ export class RoutePanel {
   protected icon: AppIconDef;
   protected app = inject(AppFacade);
   private skres = inject(SKResourceService);
+  private routeBuffers = inject(RouteBufferRegistry);
   private course = inject(CourseService);
   protected skgroups = inject(SKResourceGroupService);
   private dialog = inject(MatDialog);
@@ -241,7 +247,11 @@ export class RoutePanel {
   }
 
   protected onDelete() {
-    this.skres.deleteRoute(this.id());
+    if (this.routeBuffers.has(this.id())) {
+      this.routeBuffers.delete(this.id());
+    } else {
+      this.skres.deleteRoute(this.id());
+    }
   }
 
   protected onPanTo() {

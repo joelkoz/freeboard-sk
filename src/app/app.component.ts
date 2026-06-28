@@ -1783,6 +1783,41 @@ export class AppComponent {
   }
 
   /** Handle feature DrawEnded event and prompt to save */
+  /**
+   * Route info-panel "edit" action. For an unsaved live buffer this is the
+   * "Save" button: persist it to a stored route. For a saved route it edits
+   * the name/description as before.
+   */
+  protected onRouteInfoEdit(id: string) {
+    if (this.routeBuffers.has(id)) {
+      this.saveRouteBuffer(id);
+    } else {
+      this.skres.editRouteInfo(id);
+    }
+  }
+
+  /**
+   * Persist an unsaved route edit buffer to a stored route via the Route
+   * Details dialog (name/description). On save, discard the buffer and re-open
+   * the info panel on the now-saved route (so its action becomes "Edit").
+   * Cancelling the dialog leaves the buffer unsaved.
+   */
+  protected async saveRouteBuffer(bufferId: string) {
+    const buf = this.routeBuffers.get(bufferId);
+    if (!buf) {
+      return;
+    }
+    const [, route] = this.skres.buildRoute(
+      buf.points.map((p) => p.position) as LineString
+    );
+    route.name = buf.name ?? '';
+    const savedId = await this.skres.saveNewRoute(route);
+    if (savedId) {
+      this.routeBuffers.delete(bufferId);
+      this.infoPanel.open('routes', savedId);
+    }
+  }
+
   protected handleDrawEnded(e: DrawFeatureInfo) {
     this.mapInteract.isDrawing();
     switch (this.mapInteract.draw.resourceType) {

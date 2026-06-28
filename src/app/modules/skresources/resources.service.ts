@@ -1145,6 +1145,37 @@ export class SKResourceService {
   }
 
   /**
+   * @description Open the Route Details dialog for an unsaved route and, on
+   * save, persist it to the server. Resolves with the saved resource id, or
+   * null if the user cancelled (closed the dialog without saving). Used to
+   * persist a live edit buffer into a stored route.
+   */
+  public saveNewRoute(route: SKRoute): Promise<string | null> {
+    return new Promise((resolve) => {
+      this.dialog
+        .open(RouteDialog, {
+          disableClose: true,
+          data: { title: 'Route Details', route }
+        })
+        .afterClosed()
+        .subscribe(async (r: { save: boolean; route: SKRoute }) => {
+          if (r?.save) {
+            try {
+              const rte = await this.postToServer('routes', r.route);
+              this.selectionAdd('routes', rte.id);
+              resolve(rte.id);
+            } catch (err) {
+              this.app.parseHttpErrorResponse(err);
+              resolve(null);
+            }
+          } else {
+            resolve(null);
+          }
+        });
+    });
+  }
+
+  /**
    * @description Fetch Route with supplied id and display edit dialog
    * @param id route identifier
    */

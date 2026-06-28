@@ -1493,7 +1493,16 @@ export class FBMapComponent implements OnInit, OnDestroy {
       ['notes', 'regions', 'waypoints', 'routes'].includes(collection) &&
       this.app.useInfoPanel()
     ) {
-      this.infoPanel.open(collection, this.overlay().id);
+      if (collection === 'routes' && this.routeBuffers.has(this.overlay().id)) {
+        // Unsaved live buffer: open the info panel directly from the registry
+        // (it is not on the server, so infoPanel.open()'s fetch would fail).
+        this.infoPanel.openWith(
+          'routes',
+          this.bufferToFBRoute(this.routeBuffers.get(this.overlay().id)!)
+        );
+      } else {
+        this.infoPanel.open(collection, this.overlay().id);
+      }
     } else {
       this.skres.resourceProperties(this.overlay());
     }
