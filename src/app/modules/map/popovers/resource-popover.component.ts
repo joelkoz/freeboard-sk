@@ -112,7 +112,10 @@ interface PopoverCtrl {
 
       <div style="display:flex;flex-wrap: wrap;">
         @if (ctrl.showModifyButton) {
-          <div class="popover-action-button">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 1 : null"
+          >
             <button
               mat-button
               (click)="emitModify()"
@@ -139,7 +142,10 @@ interface PopoverCtrl {
           </div>
         }
         @if (ctrl.showDeleteButton) {
-          <div class="popover-action-button">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 6 : null"
+          >
             <button
               mat-button
               [disabled]="ctrl.isReadOnly || ctrl.isActive"
@@ -153,7 +159,10 @@ interface PopoverCtrl {
           </div>
         }
         @if (ctrl.canActivate && !ctrl.isActive) {
-          <div class="popover-action-button">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 2 : null"
+          >
             <button
               mat-button
               (click)="emitActive(true)"
@@ -169,7 +178,10 @@ interface PopoverCtrl {
             </button>
           </div>
         } @else if (ctrl.canActivate && ctrl.isActive) {
-          <div class="popover-action-button">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 2 : null"
+          >
             <button
               mat-button
               (click)="emitActive(false)"
@@ -182,7 +194,10 @@ interface PopoverCtrl {
           </div>
         }
         @if (ctrl.showPointsButton) {
-          <div class="popover-action-button">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 3 : null"
+          >
             <button
               mat-button
               (click)="emitPoints()"
@@ -208,7 +223,10 @@ interface PopoverCtrl {
           </div>
         }
         @if (ctrl.showNotesButton) {
-          <div class="popover-action-button">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 4 : null"
+          >
             <button
               mat-button
               (click)="emitNotes()"
@@ -221,7 +239,10 @@ interface PopoverCtrl {
           </div>
         }
         @if (ctrl.showInfoButton) {
-          <div class="popover-action-button">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 5 : null"
+          >
             <button
               mat-button
               (click)="emitInfo()"
@@ -234,7 +255,10 @@ interface PopoverCtrl {
           </div>
         }
         @if (ctrl.showSaveButton) {
-          <div class="popover-action-button" style="margin-left:auto">
+          <div
+            class="popover-action-button"
+            [style.order]="type() === 'route' ? 2 : null"
+          >
             <button
               mat-button
               color="primary"
@@ -410,9 +434,9 @@ export class ResourcePopoverComponent {
     this.ctrl.showNotesButton = this.app.useInfoPanel() ? false : true;
     this.ctrl.showAddNoteButton = false;
     this.ctrl.showRelatedButton = false;
-    this.ctrl.showDeleteButton = this.app.useInfoPanel()
-      ? false
-      : !this.ctrl.isReadOnly;
+    // Always offer Delete for routes (consistent lower-right action), even with
+    // the info panel; the button itself is disabled when the route is active.
+    this.ctrl.showDeleteButton = !this.ctrl.isReadOnly;
 
     this.icon = getResourceIcon('routes', this.resource()[1]);
     this._title.set(this.resource()[1].name ?? '');
