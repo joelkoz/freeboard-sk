@@ -1806,7 +1806,8 @@ export class AppComponent {
     // The shared save bridge handles the naming dialog, the server write,
     // the route.saved event and discarding the buffer; we just re-open the
     // info panel on the now-saved route so its action becomes "Edit".
-    const result = await this.plotterExt.saveBuffer(bufferId);
+    // dialog: true — the FSK SAVE button always prompts for a name.
+    const result = await this.plotterExt.saveBuffer(bufferId, { dialog: true });
     if (result) {
       this.infoPanel.open('routes', result.href);
     }

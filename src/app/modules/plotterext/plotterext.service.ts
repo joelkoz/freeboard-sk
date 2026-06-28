@@ -615,7 +615,7 @@ export class PlotterExtensionService {
   /** Host API handlers for the `routes` capability. */
   private routeMethods(): Record<string, MethodHandler> {
     return createRouteMethods(this.routeRegistry, {
-      onSave: (routeId) => this.saveBuffer(routeId)
+      onSave: (routeId, params) => this.saveBuffer(routeId, params)
     });
   }
 
@@ -627,7 +627,8 @@ export class PlotterExtensionService {
    * "Save" action so both behave identically.
    */
   async saveBuffer(
-    routeId: string
+    routeId: string,
+    opts: { name?: string; description?: string; dialog?: boolean } = {}
   ): Promise<{ href: string; rev: number } | null> {
     const buf = this.routeRegistry.get(routeId);
     if (!buf) {
@@ -636,8 +637,25 @@ export class PlotterExtensionService {
     const [, route] = this.skres.buildRoute(
       buf.points.map((p) => p.position) as LineString
     );
-    route.name = buf.name ?? '';
-    const savedId = await this.skres.saveNewRoute(route);
+    route.name = opts.name ?? buf.name ?? '';
+    if (opts.description !== undefined) {
+      route.description = opts.description;
+    }
+    let savedId: string | null;
+    if (opts.dialog) {
+      // Interactive: open the Route Details dialog (prefilled) so the user
+      // names it. Returns null if they cancel.
+      savedId = await this.skres.saveNewRoute(route);
+    } else {
+      // Headless: persist directly with the supplied (or buffer) name.
+      try {
+        const rte = await this.skres.postToServer('routes', route);
+        savedId = rte.id;
+      } catch (err) {
+        this.app.parseHttpErrorResponse(err);
+        savedId = null;
+      }
+    }
     if (!savedId) {
       return null;
     }

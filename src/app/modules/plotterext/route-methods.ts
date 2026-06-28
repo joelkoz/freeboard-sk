@@ -23,7 +23,7 @@ import { RouteBufferRegistry } from './route-buffer.registry';
  */
 export type RouteSaveHandler = (
   routeId: string,
-  params: { name?: string; description?: string }
+  params: { name?: string; description?: string; dialog?: boolean }
 ) => Promise<{ href: string; rev: number } | null>;
 
 export function createRouteMethods(
@@ -76,11 +76,12 @@ export function createRouteMethods(
           reason: 'routes.notSupported'
         });
       }
-      const { name, description } = (params ?? {}) as {
+      const { name, description, dialog } = (params ?? {}) as {
         name?: string;
         description?: string;
+        dialog?: boolean;
       };
-      const result = await opts.onSave(routeId, { name, description });
+      const result = await opts.onSave(routeId, { name, description, dialog });
       if (!result) {
         throw new RpcError('Route save was cancelled', {
           reason: 'routes.saveCancelled'
