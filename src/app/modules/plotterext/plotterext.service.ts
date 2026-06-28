@@ -600,9 +600,6 @@ export class PlotterExtensionService {
     const displayed = this.skres.routes();
     const displayedHrefs = new Set(displayed.map((r) => r[0]));
     for (const [id, route] of displayed) {
-      if (this.routeRegistry.hasHref(id)) {
-        continue;
-      }
       const coords = (route.feature?.geometry?.coordinates ?? []) as Position[];
       const meta = route.feature?.properties?.coordinatesMeta as
         | Array<{ name?: string }>
@@ -611,6 +608,29 @@ export class PlotterExtensionService {
         position,
         ...(meta?.[i]?.name ? { name: meta[i].name } : {})
       }));
+      const mirror = this.routeRegistry.get(id);
+      if (this.routeRegistry.hasHref(id)) {
+        // Already represented. Refresh our own clean mirror (keyed by the
+        // resource id) when the backing route changed server-side; never clobber
+        // a draft or a buffer with pending edits.
+        const stale =
+          mirror &&
+          mirror.saved &&
+          !mirror.dirty &&
+          (mirror.points.length !== points.length ||
+            (mirror.name ?? null) !== (route.name ?? null) ||
+            (mirror.description ?? null) !== (route.description ?? null));
+        if (stale) {
+          this.routeRegistry.show({
+            routeId: id,
+            name: route.name ?? null,
+            description: route.description ?? null,
+            points,
+            href: id
+          });
+        }
+        continue;
+      }
       this.routeRegistry.show({
         routeId: id,
         name: route.name ?? null,
@@ -697,13 +717,21 @@ export class PlotterExtensionService {
    * an unsaved one — same effect as hide). The route leaves the visible set as
    * `route.hidden saved:false` (gone) in both cases.
    */
-  deleteRoute(routeId: string): void {
+  async deleteRoute(routeId: string): Promise<void> {
     const buf = this.routeRegistry.get(routeId);
     if (!buf) {
       return;
     }
     if (buf.saved && buf.href) {
-      this.skres.deleteRoute(buf.href);
+      // Delete the resource directly (no confirm dialog — the extension already
+      // chose to delete) and await it; keep the route on failure so host state
+      // matches the server.
+      try {
+        await this.skres.deleteFromServer('routes', buf.href);
+      } catch (err) {
+        this.app.parseHttpErrorResponse(err);
+        return;
+      }
     }
     this.routeRegistry.delete(routeId, false);
   }
@@ -719,6 +747,8 @@ export class PlotterExtensionService {
     await this.skres.refreshRoutes();
     const cached = this.skres.fromCache('routes', ref);
     if (!cached) {
+      // Undo the speculative selection so an unknown ref doesn't linger in config.
+      this.skres.selectionRemove('routes', ref);
       throw new RpcError('No such route', { reason: 'routes.badRef' });
     }
     const route = cached[1];
@@ -771,7 +801,12 @@ export class PlotterExtensionService {
       buf = this.routeRegistry.get(routeId);
     }
     const href = buf?.href ?? routeId;
-    this.skres.updateRouteCoords(href, coords, coordsMetadata);
+    // Await persistence — only mark saved + broadcast route.saved if the PUT
+    // succeeded; otherwise the buffer stays dirty.
+    const ok = await this.skres.updateRouteCoords(href, coords, coordsMetadata);
+    if (!ok) {
+      return;
+    }
     const rev = this.routeRegistry.markSaved(routeId, href) ?? 0;
     this.broadcastMessage('route.saved', {
       routeId,
@@ -802,10 +837,17 @@ export class PlotterExtensionService {
     const [, route] = this.skres.buildRoute(
       buf.points.map((p) => p.position) as LineString
     );
-    route.name = opts.name ?? buf.name ?? '';
-    if (opts.description !== undefined) {
-      route.description = opts.description;
+    // buildRoute keeps only positions — carry the per-point names/descriptions
+    // and the route-level description so they are not silently dropped on save.
+    const coordinatesMeta = buf.points.map((p) => ({
+      ...(p.name ? { name: p.name } : {}),
+      ...(p.description ? { description: p.description } : {})
+    }));
+    if (coordinatesMeta.some((m) => Object.keys(m).length > 0)) {
+      route.feature.properties.coordinatesMeta = coordinatesMeta;
     }
+    route.name = opts.name ?? buf.name ?? '';
+    route.description = opts.description ?? buf.description ?? '';
     let savedId: string | null;
     if (buf.href) {
       // Backed by an existing resource — update it in place (keep its id).
@@ -825,6 +867,9 @@ export class PlotterExtensionService {
       try {
         const rte = await this.skres.postToServer('routes', route);
         savedId = rte.id;
+        // The dialog path (saveNewRoute) selects the new route; do the same for
+        // the headless path so it stays displayed after a refresh.
+        this.skres.selectionAdd('routes', savedId);
       } catch (err) {
         this.app.parseHttpErrorResponse(err);
         savedId = null;

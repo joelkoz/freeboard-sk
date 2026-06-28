@@ -1789,7 +1789,11 @@ export class AppComponent {
    * the name/description as before.
    */
   protected onRouteInfoEdit(id: string) {
-    if (this.routeBuffers.has(id)) {
+    // The registry also mirrors clean saved routes, so route only an unsaved
+    // draft / pending-edit buffer to the save flow; a clean saved route uses the
+    // normal route-details edit path.
+    const b = this.routeBuffers.get(id);
+    if (b && (!b.saved || b.dirty)) {
       this.saveRouteBuffer(id);
     } else {
       this.skres.editRouteInfo(id);

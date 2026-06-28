@@ -271,6 +271,13 @@ export class MapComponent implements OnInit, OnDestroy {
       .getArray()
       .find((i) => i instanceof Modify && i.getActive()) as Modify | undefined;
     if (modify) {
+      // Touch/pen only — a mouse user deletes a vertex with Ctrl-Click, so a
+      // long mouse hold (e.g. pausing to decide where to drag a point) must not
+      // delete it.
+      const pointerType = (src as PointerEvent).pointerType;
+      if (pointerType !== 'touch' && pointerType !== 'pen') {
+        return;
+      }
       this.map.set('vertexDeleteOnRelease', true);
       try {
         this.map.getViewport().dispatchEvent(
@@ -298,7 +305,14 @@ export class MapComponent implements OnInit, OnDestroy {
     this.evCache[event.pointerId] = event;
     this.map.set('vertexDeleteOnRelease', false);
     this.touchStartXY = { x: event.clientX, y: event.clientY };
-    this.touchTimer = setTimeout(this.touchHold, 500);
+    // A vertex delete during Modify needs a deliberate long hold (1500 ms) so a
+    // pause mid-edit doesn't delete a point; the chart context-menu long-press
+    // stays at 500 ms.
+    const modifying = this.map
+      .getInteractions()
+      .getArray()
+      .some((i) => i instanceof Modify && i.getActive());
+    this.touchTimer = setTimeout(this.touchHold, modifying ? 1500 : 500);
     const c = toLonLat(this.map.getEventCoordinate(event));
     const e = Object.assign(event, { lonlat: c });
     this.mapService.clearFeatureUrls();

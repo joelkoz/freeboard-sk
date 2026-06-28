@@ -127,7 +127,7 @@ describe('RouteBufferRegistry', () => {
       name: 'P',
       points: [{ position: [0, 0] }]
     });
-    const rev = reg.markSaved(routeId);
+    const rev = reg.markSaved(routeId, 'routes/saved-1');
     expect(rev).toBe(2);
     const b = reg.get(routeId);
     expect(b?.saved).toBe(true);

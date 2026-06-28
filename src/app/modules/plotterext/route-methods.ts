@@ -89,7 +89,15 @@ export function createRouteMethods(
     'route.replace': (params) => {
       const routeId = requireRouteId(params);
       const { points } = (params ?? {}) as { points?: RoutePoint[] };
-      const updated = registry.replace(routeId, points ?? []);
+      // Same two-point invariant as route.create — never let a replace wipe a
+      // route down to an invalid geometry.
+      if (!Array.isArray(points) || points.length < 2) {
+        throw new RpcError('a route needs at least two points', {
+          code: RPC_ERRORS.INVALID_PARAMS,
+          reason: 'routes.badRequest'
+        });
+      }
+      const updated = registry.replace(routeId, points);
       if (!updated) {
         throw unknownId();
       }

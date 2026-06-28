@@ -901,6 +901,15 @@ export class FBMapComponent implements OnInit, OnDestroy {
 
   /** Enter modify mode */
   /** Convert a live route edit buffer to the FBRoute tuple fb-routes renders. */
+  /** The route buffer for `routeId` only when it represents an unsaved draft or
+   *  a route with pending edits. The registry now also mirrors clean saved
+   *  routes, so a plain `routeBuffers.has()` would wrongly treat those as
+   *  unsaved. */
+  private getUnsavedRouteBuffer(routeId: string): RouteBuffer | undefined {
+    const b = this.routeBuffers.get(routeId);
+    return b && (!b.saved || b.dirty) ? b : undefined;
+  }
+
   private bufferToFBRoute(b: RouteBuffer): FBRoute {
     const rte = new SKRoute();
     rte.name = b.name ?? '';
@@ -1117,8 +1126,9 @@ export class FBMapComponent implements OnInit, OnDestroy {
               class: 'icon-route'
             };
             addToFeatureList = true;
-            if (this.routeBuffers.has(t[1])) {
-              text = this.routeBuffers.get(t[1])!.name || 'Route (unsaved)';
+            const ub = this.getUnsavedRouteBuffer(t[1]);
+            if (ub) {
+              text = ub.name || 'Route (unsaved)';
             } else {
               const r = this.skres.fromCache('routes', t[1]);
               text = r[1].name;
@@ -1425,12 +1435,13 @@ export class FBMapComponent implements OnInit, OnDestroy {
           this.popoverInfo();
         }
         break;
-      case 'route':
-        if (this.routeBuffers.has(t[1])) {
+      case 'route': {
+        const ub = this.getUnsavedRouteBuffer(t[1]);
+        if (ub) {
           // Unsaved live edit buffer (amber draft): build the popover from the
           // registry, not the saved-route cache. The popover header shows the
           // route name, so fall back to "(unsaved)" for an unnamed draft.
-          const skr = this.bufferToFBRoute(this.routeBuffers.get(t[1])!)[1];
+          const skr = this.bufferToFBRoute(ub)[1];
           skr.name = skr.name || '(unsaved)';
           poData.id = t[1];
           poData.type = 'route';
@@ -1455,6 +1466,7 @@ export class FBMapComponent implements OnInit, OnDestroy {
           this.popoverInfo();
         }
         break;
+      }
       case 'waypoint':
         item = [this.skres.fromCache('waypoints', t[1])];
         if (!item) {
@@ -1516,13 +1528,11 @@ export class FBMapComponent implements OnInit, OnDestroy {
       ['notes', 'regions', 'waypoints', 'routes'].includes(collection) &&
       this.app.useInfoPanel()
     ) {
-      if (collection === 'routes' && this.routeBuffers.has(this.overlay().id)) {
+      const ub = this.getUnsavedRouteBuffer(this.overlay().id);
+      if (collection === 'routes' && ub) {
         // Unsaved live buffer: open the info panel directly from the registry
         // (it is not on the server, so infoPanel.open()'s fetch would fail).
-        this.infoPanel.openWith(
-          'routes',
-          this.bufferToFBRoute(this.routeBuffers.get(this.overlay().id)!)
-        );
+        this.infoPanel.openWith('routes', this.bufferToFBRoute(ub));
       } else {
         this.infoPanel.open(collection, this.overlay().id);
       }

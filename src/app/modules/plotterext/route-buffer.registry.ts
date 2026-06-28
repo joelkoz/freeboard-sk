@@ -113,7 +113,11 @@ export class RouteBufferRegistry {
       saved: true,
       dirty: false,
       href: opts.href,
-      points: (opts.points ?? []).map((p) => this.clonePoint(p))
+      // A metadata-only refresh (no points) must keep the existing geometry,
+      // not blank it.
+      points: (opts.points ?? existing?.points ?? []).map((p) =>
+        this.clonePoint(p)
+      )
     };
     this.buffers.set(opts.routeId, buffer);
     this.refreshLive();
@@ -206,6 +210,11 @@ export class RouteBufferRegistry {
     const b = this.buffers.get(routeId);
     if (!b) {
       return undefined;
+    }
+    // A draft only becomes "saved" once it has a backing resource id — that id
+    // is what hasHref()/the selection-mirror rely on.
+    if (!b.saved && href === undefined) {
+      throw new Error('markSaved requires an href when saving a draft route');
     }
     b.rev += 1;
     b.saved = true;

@@ -1259,10 +1259,10 @@ export class SKResourceService {
     coords: Array<Position>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     coordsMeta?: Array<any>
-  ) {
+  ): Promise<boolean> {
     const r = this.fromCache('routes', id);
     if (!r) {
-      return;
+      return Promise.resolve(false);
     }
     const rte = r[1];
     rte['feature']['geometry']['coordinates'] =
@@ -1272,9 +1272,14 @@ export class SKResourceService {
     if (coordsMeta) {
       rte['feature']['properties']['coordinatesMeta'] = coordsMeta;
     }
-    this.putToServer('routes', id, rte).catch((err) => {
-      this.app.parseHttpErrorResponse(err);
-    });
+    // Resolves true on success, false on failure (the error is surfaced here);
+    // callers that only fire-and-forget can ignore the result.
+    return this.putToServer('routes', id, rte)
+      .then(() => true)
+      .catch((err) => {
+        this.app.parseHttpErrorResponse(err);
+        return false;
+      });
   }
 
   // **** WAYPOINTS ****

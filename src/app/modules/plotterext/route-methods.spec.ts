@@ -132,8 +132,21 @@ describe('route methods (host handlers)', () => {
   it('route.replace on an unknown id rejects with routes.unknownId', async () => {
     const { call } = setup();
     await expect(
-      call('route.replace', { routeId: 'nope', points: [] })
+      call('route.replace', {
+        routeId: 'nope',
+        points: [{ position: [0, 0] }, { position: [1, 1] }]
+      })
     ).rejects.toHaveProperty('reason', 'routes.unknownId');
+  });
+
+  it('route.replace with fewer than two points rejects routes.badRequest', async () => {
+    const { call, registry } = setup();
+    const { routeId } = registry.create({
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    });
+    await expect(
+      call('route.replace', { routeId, points: [{ position: [9, 9] }] })
+    ).rejects.toHaveProperty('reason', 'routes.badRequest');
   });
   it('route.save delegates to onSave and returns its result', async () => {
     const registry = new RouteBufferRegistry();
