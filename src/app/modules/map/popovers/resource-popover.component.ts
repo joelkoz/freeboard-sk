@@ -28,6 +28,7 @@ interface PopoverCtrl {
   showRelatedButton: boolean;
   showPointsButton: boolean;
   showNotesButton: boolean;
+  showSaveButton: boolean;
   canActivate: boolean;
   isActive: boolean;
   activeText: string;
@@ -232,6 +233,20 @@ interface PopoverCtrl {
             </button>
           </div>
         }
+        @if (ctrl.showSaveButton) {
+          <div class="popover-action-button" style="margin-left:auto">
+            <button
+              mat-button
+              color="primary"
+              (click)="emitSave()"
+              matTooltip="Save Route"
+              matTooltipPosition="after"
+            >
+              <mat-icon>save</mat-icon>
+              SAVE
+            </button>
+          </div>
+        }
       </div>
     </ap-popover>
   `,
@@ -245,7 +260,10 @@ export class ResourcePopoverComponent {
   featureCount = input<number>(0);
   units = input<string>('m');
   canClose = input<boolean>();
+  /** Host-set: this route is an unsaved draft → show the Save shortcut. */
+  canSave = input<boolean>(false);
   modify = output<void>();
+  save = output<void>();
   delete = output<void>();
   addNote = output<void>();
   activated = output<void>();
@@ -267,6 +285,7 @@ export class ResourcePopoverComponent {
     showRelatedButton: false,
     showPointsButton: false,
     showNotesButton: false,
+    showSaveButton: false,
     canActivate: false,
     isActive: false,
     activeText: 'ACTIVE',
@@ -288,6 +307,8 @@ export class ResourcePopoverComponent {
       // Routes/regions are shape-edited ("Modify"); points are moved ("Move").
       this.ctrl.modifyLabel =
         this.type() === 'route' || this.type() === 'region' ? 'MODIFY' : 'MOVE';
+      // Save shortcut: only for an unsaved route (host-decided via canSave).
+      this.ctrl.showSaveButton = this.type() === 'route' && this.canSave();
     });
   }
 
@@ -450,6 +471,10 @@ export class ResourcePopoverComponent {
 
   emitModify() {
     this.modify.emit();
+  }
+
+  emitSave() {
+    this.save.emit();
   }
 
   emitAddNote() {

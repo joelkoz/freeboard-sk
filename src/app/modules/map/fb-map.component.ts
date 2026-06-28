@@ -911,6 +911,24 @@ export class FBMapComponent implements OnInit, OnDestroy {
     return [b.routeId, rte, true];
   }
 
+  /** True when the popover's route is an unsaved draft (or has pending edits). */
+  protected isUnsavedRoute(): boolean {
+    if (this.overlay().type !== 'route') {
+      return false;
+    }
+    const b = this.routeBuffers.get(this.overlay().id);
+    return !!b && (!b.saved || b.dirty);
+  }
+
+  /**
+   * Popover "Save" shortcut for an unsaved route — opens the standard Route
+   * Details dialog (same path as the info-panel SAVE) and persists. Saves the
+   * user a trip through INFO.
+   */
+  protected saveRouteFromPopover() {
+    void this.plotterExt.saveBuffer(this.overlay().id, { dialog: true });
+  }
+
   protected modifyFeature(featureType?: string) {
     if (this.mapInteract.draw.features.getLength() === 0) {
       return;

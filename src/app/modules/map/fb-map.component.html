@@ -561,7 +561,9 @@
           "
           [featureCount]="overlay().featureCount"
           [units]="scaleUnits()"
+          [canSave]="isUnsavedRoute()"
           (modify)="modifyFeature(); popoverClosed()"
+          (save)="saveRouteFromPopover(); popoverClosed()"
           (delete)="
             deleteFeature(overlay().id, overlay().type); popoverClosed()
           "
