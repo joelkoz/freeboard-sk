@@ -18,7 +18,13 @@
 //
 // Map/resource host APIs (buttons, filters, map.*) belong to phase 3.
 
-import { Injectable, computed, isDevMode, signal } from '@angular/core';
+import {
+  Injectable,
+  computed,
+  effect,
+  isDevMode,
+  signal
+} from '@angular/core';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { SignalKClient } from 'signalk-client-angular';
@@ -577,6 +583,47 @@ export class PlotterExtensionService {
       this.viewportTick.update((n) => n + 1)
     );
     this.bridgeRouteEvents();
+    // Mirror Freeboard's displayed (selected) routes into the visible-route
+    // registry so the `routes` capability reflects them — including routes
+    // restored from a previous session's selection state on load. Reads
+    // skres.routes() so it re-runs whenever the displayed set changes.
+    effect(() => this.syncVisibleFromSelections());
+  }
+
+  /**
+   * Bring the registry in line with the host's displayed saved routes: show any
+   * that are displayed but not yet mirrored (emits `route.visible saved:true`),
+   * and hide mirrors of routes no longer displayed that have no pending edits
+   * (emits `route.hidden saved:true`). Drafts and dirty edits are left alone.
+   */
+  private syncVisibleFromSelections(): void {
+    const displayed = this.skres.routes();
+    const displayedHrefs = new Set(displayed.map((r) => r[0]));
+    for (const [id, route] of displayed) {
+      if (this.routeRegistry.hasHref(id)) {
+        continue;
+      }
+      const coords = (route.feature?.geometry?.coordinates ?? []) as Position[];
+      const meta = route.feature?.properties?.coordinatesMeta as
+        | Array<{ name?: string }>
+        | undefined;
+      const points: RoutePoint[] = coords.map((position, i) => ({
+        position,
+        ...(meta?.[i]?.name ? { name: meta[i].name } : {})
+      }));
+      this.routeRegistry.show({
+        routeId: id,
+        name: route.name ?? null,
+        description: route.description ?? null,
+        points,
+        href: id
+      });
+    }
+    for (const buf of this.routeRegistry.all()) {
+      if (buf.saved && !buf.dirty && buf.href && !displayedHrefs.has(buf.href)) {
+        this.routeRegistry.delete(buf.routeId, true);
+      }
+    }
   }
 
   /**

@@ -140,6 +140,23 @@ export class RouteBufferRegistry {
     return this.buffers.has(routeId);
   }
 
+  /** Whether any buffer is backed by the given resource id (href). Used to
+   *  dedupe when mirroring the host's displayed routes into the visible set. */
+  hasHref(href: string): boolean {
+    for (const b of this.buffers.values()) {
+      if (b.href === href) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Non-reactive snapshot of every buffer (does not read the live() signal, so
+   *  it is safe to call inside an effect that also mutates the registry). */
+  all(): RouteBuffer[] {
+    return [...this.buffers.values()].map((b) => this.snapshot(b));
+  }
+
   /** Summaries of all live routes (the visible set). */
   list(): RouteSummary[] {
     return [...this.buffers.values()].map((b) => ({
