@@ -35,9 +35,22 @@ export type RouteShowHandler = (
   ref: string
 ) => Promise<{ routeId: string; rev: number }>;
 
+/** Remove a route from the map: unchecks a saved route's visibility, or deletes
+ *  an unsaved draft. Host-specific (touches resource selections). */
+export type RouteHideHandler = (routeId: string) => Promise<void> | void;
+
+/** Permanently delete a saved route from the store (or discard an unsaved one).
+ *  Host-specific (deletes the resource). */
+export type RouteDeleteHandler = (routeId: string) => Promise<void> | void;
+
 export function createRouteMethods(
   registry: RouteBufferRegistry,
-  opts: { onSave?: RouteSaveHandler; onShow?: RouteShowHandler } = {}
+  opts: {
+    onSave?: RouteSaveHandler;
+    onShow?: RouteShowHandler;
+    onHide?: RouteHideHandler;
+    onDelete?: RouteDeleteHandler;
+  } = {}
 ): Record<string, MethodHandler> {
   const requireRouteId = (params: unknown): string => {
     const routeId = (params as { routeId?: unknown } | null)?.routeId;
@@ -61,6 +74,13 @@ export function createRouteMethods(
         name?: string;
         points?: RoutePoint[];
       };
+      // A route needs at least two points to define a segment.
+      if (!Array.isArray(points) || points.length < 2) {
+        throw new RpcError('a route needs at least two points', {
+          code: RPC_ERRORS.INVALID_PARAMS,
+          reason: 'routes.badRequest'
+        });
+      }
       const buffer = registry.create({ name, points });
       return { routeId: buffer.routeId, rev: buffer.rev };
     },
@@ -107,9 +127,32 @@ export function createRouteMethods(
       return buffer;
     },
 
-    'route.hide': (params) => {
-      if (!registry.delete(requireRouteId(params))) {
+    'route.hide': async (params) => {
+      const routeId = requireRouteId(params);
+      if (!registry.has(routeId)) {
         throw unknownId();
+      }
+      // Unchecking a saved route's visibility is host-specific; a draft just
+      // leaves the buffer.
+      if (opts.onHide) {
+        await opts.onHide(routeId);
+      } else {
+        registry.delete(routeId);
+      }
+      return {};
+    },
+
+    'route.delete': async (params) => {
+      const routeId = requireRouteId(params);
+      if (!registry.has(routeId)) {
+        throw unknownId();
+      }
+      // Permanently deleting a saved resource is host-specific; without wiring
+      // we can only discard the buffer (draft semantics, saved:false).
+      if (opts.onDelete) {
+        await opts.onDelete(routeId);
+      } else {
+        registry.delete(routeId, false);
       }
       return {};
     },

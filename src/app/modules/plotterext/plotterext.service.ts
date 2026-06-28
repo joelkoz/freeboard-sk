@@ -620,8 +620,45 @@ export class PlotterExtensionService {
   private routeMethods(): Record<string, MethodHandler> {
     return createRouteMethods(this.routeRegistry, {
       onSave: (routeId, params) => this.saveBuffer(routeId, params),
-      onShow: (ref) => this.showRoute(ref)
+      onShow: (ref) => this.showRoute(ref),
+      onHide: (routeId) => this.hideRoute(routeId),
+      onDelete: (routeId) => this.deleteRoute(routeId)
     });
+  }
+
+  /**
+   * `route.hide`: remove a route from the map. A saved route's visibility is
+   * unchecked (the stored resource is untouched → `route.hidden saved:true`); an
+   * unsaved draft is discarded (`route.hidden saved:false`).
+   */
+  hideRoute(routeId: string): void {
+    const buf = this.routeRegistry.get(routeId);
+    if (!buf) {
+      return;
+    }
+    if (buf.saved && buf.href) {
+      this.skres.selectionRemove('routes', buf.href);
+      this.skres.refreshRoutes();
+      this.routeRegistry.delete(routeId, true);
+    } else {
+      this.routeRegistry.delete(routeId, false);
+    }
+  }
+
+  /**
+   * `route.delete`: permanently delete a saved route from the store (and discard
+   * an unsaved one — same effect as hide). The route leaves the visible set as
+   * `route.hidden saved:false` (gone) in both cases.
+   */
+  deleteRoute(routeId: string): void {
+    const buf = this.routeRegistry.get(routeId);
+    if (!buf) {
+      return;
+    }
+    if (buf.saved && buf.href) {
+      this.skres.deleteRoute(buf.href);
+    }
+    this.routeRegistry.delete(routeId, false);
   }
 
   /**

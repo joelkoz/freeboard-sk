@@ -151,13 +151,16 @@ export class RouteBufferRegistry {
    * was made invisible (the resource is untouched); `saved:false` ⇒ a draft was
    * deleted.
    */
-  delete(routeId: string): boolean {
+  delete(routeId: string, hiddenSaved?: boolean): boolean {
     const b = this.buffers.get(routeId);
     if (!b) {
       return false;
     }
     b.rev += 1;
-    const saved = b.saved;
+    // The emitted `saved` reflects whether the route still exists on the server
+    // afterwards: defaults to the buffer's flag (hide), but a permanent delete
+    // passes false (gone) even for a route that was saved.
+    const saved = hiddenSaved ?? b.saved;
     this.buffers.delete(routeId);
     this.refreshLive();
     this.events.next({ type: 'hidden', routeId, rev: b.rev, saved });

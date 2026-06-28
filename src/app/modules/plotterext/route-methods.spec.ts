@@ -16,17 +16,20 @@ describe('route methods (host handlers)', () => {
     const { call, registry } = setup();
     const res = (await call('route.create', {
       name: 'A',
-      points: [{ position: [1, 2] }]
+      points: [{ position: [1, 2] }, { position: [3, 4] }]
     })) as { routeId: string; rev: number };
     expect(res.rev).toBe(1);
     expect(typeof res.routeId).toBe('string');
     expect(registry.get(res.routeId)?.name).toBe('A');
-    expect(registry.get(res.routeId)?.points).toHaveLength(1);
+    expect(registry.get(res.routeId)?.points).toHaveLength(2);
   });
 
   it('route.get returns the buffer snapshot', async () => {
     const { call } = setup();
-    const { routeId } = (await call('route.create', { name: 'A' })) as {
+    const { routeId } = (await call('route.create', {
+      name: 'A',
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    })) as {
       routeId: string;
     };
     const b = await call('route.get', { routeId });
@@ -36,21 +39,29 @@ describe('route methods (host handlers)', () => {
       rev: 1,
       saved: false,
       dirty: true,
-      points: []
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
     });
   });
 
   it('route.list returns { routes }', async () => {
     const { call } = setup();
-    await call('route.create', { name: 'A' });
-    await call('route.create', { name: 'B' });
+    await call('route.create', {
+      name: 'A',
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    });
+    await call('route.create', {
+      name: 'B',
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    });
     const res = (await call('route.list')) as { routes: unknown[] };
     expect(res.routes).toHaveLength(2);
   });
 
   it('route.hide removes the buffer and returns {}', async () => {
     const { call, registry } = setup();
-    const { routeId } = (await call('route.create')) as { routeId: string };
+    const { routeId } = (await call('route.create', {
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    })) as { routeId: string };
     const res = await call('route.hide', { routeId });
     expect(res).toEqual({});
     expect(registry.has(routeId)).toBe(false);
@@ -108,7 +119,7 @@ describe('route methods (host handlers)', () => {
   it('route.replace sets points and returns the new rev', async () => {
     const { call, registry } = setup();
     const { routeId } = (await call('route.create', {
-      points: [{ position: [0, 0] }]
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
     })) as { routeId: string };
     const res = (await call('route.replace', {
       routeId,
@@ -156,5 +167,54 @@ describe('route methods (host handlers)', () => {
     await expect(
       (async () => methods['route.save']({ routeId: 'nope' }, {} as never))()
     ).rejects.toHaveProperty('reason', 'routes.unknownId');
+  });
+
+  it('route.create with fewer than two points rejects routes.badRequest', async () => {
+    const { call } = setup();
+    await expect(
+      call('route.create', { points: [{ position: [0, 0] }] })
+    ).rejects.toHaveProperty('reason', 'routes.badRequest');
+    await expect(call('route.create', {})).rejects.toHaveProperty(
+      'reason',
+      'routes.badRequest'
+    );
+  });
+
+  it('route.hide delegates to onHide when provided', async () => {
+    const registry = new RouteBufferRegistry();
+    const seen: string[] = [];
+    const methods = createRouteMethods(registry, {
+      onHide: (routeId) => {
+        seen.push(routeId);
+      }
+    });
+    const { routeId } = registry.create({
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    });
+    await methods['route.hide']({ routeId }, {} as never);
+    expect(seen).toEqual([routeId]);
+  });
+
+  it('route.delete delegates to onDelete; falls back to discarding the buffer', async () => {
+    const registry = new RouteBufferRegistry();
+    const seen: string[] = [];
+    const withHandler = createRouteMethods(registry, {
+      onDelete: (routeId) => {
+        seen.push(routeId);
+      }
+    });
+    const a = registry.create({
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    });
+    await withHandler['route.delete']({ routeId: a.routeId }, {} as never);
+    expect(seen).toEqual([a.routeId]);
+
+    // No handler — discards the buffer (draft semantics).
+    const noHandler = createRouteMethods(registry);
+    const b = registry.create({
+      points: [{ position: [0, 0] }, { position: [1, 1] }]
+    });
+    await noHandler['route.delete']({ routeId: b.routeId }, {} as never);
+    expect(registry.has(b.routeId)).toBe(false);
   });
 });
