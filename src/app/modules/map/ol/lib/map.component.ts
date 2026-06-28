@@ -239,18 +239,18 @@ export class MapComponent implements OnInit, OnDestroy {
       return;
     }
     const src = Object.values(this.evCache)[0];
-    // During a Modify interaction a touch long-press deletes the vertex under
-    // the finger — parity with Ctrl-Click for touch/tablet users. OL 10 delivers
-    // no `contextmenu` event for touch, so drive Modify.removePoint() directly
-    // at the press location.
-    const coord = this.map.getEventCoordinate(src);
-    let removed = false;
-    this.map.getInteractions().forEach((i) => {
-      if (!removed && i instanceof Modify && i.getActive()) {
-        removed = i.removePoint(coord);
-      }
-    });
-    if (removed) {
+    // During a Modify interaction, a long-press deletes the vertex under the
+    // pointer when the press is released — parity with Ctrl-Click for
+    // touch/tablet users (OL 10 emits no contextmenu event for touch). We flag
+    // it on the map; the Modify deleteCondition removes the vertex on the
+    // following click/release (the same code path as Ctrl-Click). A drag cancels
+    // it (see emitPointerDragEvent), so a long-press-then-move still moves.
+    const modifying = this.map
+      .getInteractions()
+      .getArray()
+      .some((i) => i instanceof Modify && i.getActive());
+    if (modifying) {
+      this.map.set('vertexDeleteOnRelease', true);
       return;
     }
     this.mapContextMenu.emit(src as any);
@@ -258,6 +258,7 @@ export class MapComponent implements OnInit, OnDestroy {
   };
   private pointerDownHandler = (event) => {
     this.evCache[event.pointerId] = event;
+    this.map.set('vertexDeleteOnRelease', false);
     this.touchTimer = setTimeout(this.touchHold, 500);
     const c = toLonLat(this.map.getEventCoordinate(event));
     const e = Object.assign(event, { lonlat: c });
@@ -333,6 +334,8 @@ export class MapComponent implements OnInit, OnDestroy {
 
   private emitPointerDragEvent = (event: MapBrowserEvent<PointerEvent>) => {
     this.clearTouchTimer();
+    // Dragging after a long-press means "move the vertex", not delete it.
+    this.map.set('vertexDeleteOnRelease', false);
     this.mapPointerDrag.emit(this.augmentPointerEvent(event));
   };
   private emitPointerMoveEvent = (event: MapBrowserEvent<PointerEvent>) => {
