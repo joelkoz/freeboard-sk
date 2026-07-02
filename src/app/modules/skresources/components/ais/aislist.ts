@@ -22,6 +22,7 @@ import { SKResourceService } from 'src/app/modules';
 import { FBVessel, FBVessels, Position } from 'src/app/types';
 import { ResourceListBase } from '../resource-list-baseclass';
 import { getAisIcon } from 'src/app/modules/icons';
+import { isTrackShown, toggleTrackSelection } from 'src/app/lib/vessel-track';
 
 //** AIS Dialog **
 @Component({
@@ -245,6 +246,25 @@ export class AISListComponent extends ResourceListBase {
    */
   protected focus(id?: string) {
     this.focusVessel.emit(id);
+  }
+
+  /**
+   * @description Whether the vessel's individual track is displayed
+   * @param id vessel identifier
+   */
+  protected isTrackShown(id: string): boolean {
+    return isTrackShown(this.app.data.vessels.showTrack, id);
+  }
+
+  /**
+   * @description Toggle display of the vessel's individual track on the map
+   * @param id vessel identifier
+   */
+  protected toggleTrack(id: string) {
+    this.app.data.vessels.showTrack = toggleTrackSelection(
+      this.app.data.vessels.showTrack,
+      id
+    );
   }
 
   /**

@@ -176,6 +176,26 @@
               <mat-icon>center_focus_strong</mat-icon>
               CENTER
             </button>
+            <span
+              [matTooltip]="
+                app.config.vessels.aisShowTrack
+                  ? 'Turn off &quot;Show All&quot; to enable'
+                  : isTrackShown(r[0])
+                    ? 'Hide vessel track'
+                    : 'Show vessel track'
+              "
+            >
+              <button
+                mat-button
+                (click)="toggleTrack(r[0])"
+                [disabled]="app.config.vessels.aisShowTrack"
+              >
+                <mat-icon
+                  >{{ isTrackShown(r[0]) ? 'layers_clear' : 'route' }}</mat-icon
+                >
+                {{ isTrackShown(r[0]) ? 'UNTRACK' : 'TRACK' }}
+              </button>
+            </span>
             <div>
               <button
                 mat-icon-button

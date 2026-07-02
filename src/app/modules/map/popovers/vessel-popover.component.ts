@@ -20,6 +20,7 @@ import { AppFacade } from 'src/app/app.facade';
 import { Buddies, SKVessel } from 'src/app/modules';
 import { Convert } from 'src/app/lib/convert';
 import { GeoUtils } from 'src/app/lib/geoutils';
+import { isTrackShown, toggleTrackSelection } from 'src/app/lib/vessel-track';
 import { Position } from 'src/app/types';
 import { HttpErrorResponse } from '@angular/common/http';
 import { AppIconDef, getAisIcon } from '../../icons';
@@ -91,6 +92,27 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
             >
               <mat-icon>clear_all</mat-icon>
             </button>
+          }
+          @if (!isSelf()) {
+            <span
+              [matTooltip]="
+                app.config.vessels.aisShowTrack
+                  ? 'Turn off &quot;Show All&quot; to enable'
+                  : isTrackShown
+                    ? 'Hide vessel track'
+                    : 'Show vessel track'
+              "
+            >
+              <button
+                mat-icon-button
+                (click)="toggleTrack()"
+                [disabled]="app.config.vessels.aisShowTrack"
+              >
+                <mat-icon>{{
+                  isTrackShown ? 'layers_clear' : 'route'
+                }}</mat-icon>
+              </button>
+            </span>
           }
         </div>
         <div style="text-align:right;">
@@ -249,6 +271,7 @@ export class VesselPopoverComponent {
   protected position: Position = [0, 0];
   protected positionTimestamp = '';
   protected isFlagged = false;
+  protected isTrackShown = false;
 
   protected app = inject(AppFacade);
   protected buddies = inject(Buddies);
@@ -261,6 +284,10 @@ export class VesselPopoverComponent {
         return;
       }
       this.isFlagged = this.app.data.vessels.flagged.includes(this.vessel().id);
+      this.isTrackShown = isTrackShown(
+        this.app.data.vessels.showTrack,
+        this.vessel().id
+      );
       this._title =
         this.title() ??
         this.vessel().name ??
@@ -364,6 +391,14 @@ export class VesselPopoverComponent {
           }
         );
     }
+  }
+
+  toggleTrack() {
+    this.app.data.vessels.showTrack = toggleTrackSelection(
+      this.app.data.vessels.showTrack,
+      this.vessel().id
+    );
+    this.isTrackShown = !this.isTrackShown;
   }
 
   toggleFlag() {
