@@ -128,6 +128,31 @@
           ></span>
           &nbsp;
           <span [innerText]="'Zm: ' + mapZoomLevel().toFixed(1)"></span>
+          @if (cursorInfo) {
+            &nbsp;
+            <span
+              [innerText]="
+                'Brg: ' +
+                app.formatValueForDisplay(cursorInfo.bearing, 'deg', {
+                  precision: 0
+                })
+              "
+            ></span>
+            &nbsp;
+            <span
+              [innerText]="
+                'Dist: ' + app.formatValueForDisplay(cursorInfo.distance, 'm')
+              "
+            ></span>
+            @if (cursorInfo.timeToGo !== null) {
+              &nbsp;
+              <span
+                [innerText]="
+                  'ETA: ' + app.formatValueForDisplay(cursorInfo.timeToGo, 's')
+                "
+              ></span>
+            }
+          }
         </span>
       </div>
     </ol-content>

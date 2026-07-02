@@ -293,6 +293,10 @@ export class SettingsDialog implements OnInit {
     this.facade.emitChangeEvent(value);
   }
 
+  protected get speedUnitSymbol(): string {
+    return Convert.getSymbol(this.facade.settings.units.speed);
+  }
+
   /**
    * Defer persisting Settings until dialog close
    */
