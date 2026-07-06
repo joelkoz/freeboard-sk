@@ -1246,7 +1246,14 @@ export class AppFacade extends InfoService {
             );
             if (nm < 0.5) {
               symbol = Convert.getSymbol(this.config.units.length);
-              nv = this.formatNumericDisplay(nm, 0);
+              nv = this.formatNumericDisplay(
+                Convert.transform(
+                  value,
+                  sourceUnit,
+                  this.config.units.length as TARGET_UNIT
+                ),
+                0
+              );
             } else {
               symbol = Convert.getSymbol(this.config.units.distance);
               nv = this.formatNumericDisplay(nm, precision);
