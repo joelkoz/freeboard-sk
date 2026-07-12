@@ -115,6 +115,7 @@ import {
   SKResourceType,
   WaypointPanel
 } from './modules/skresources';
+import { SKNote } from './modules/skresources/resource-classes';
 import { SymbolService, setSymbolRegistry } from './modules/icons';
 
 interface DrawEndEvent {
@@ -1164,11 +1165,14 @@ export class AppComponent {
   /** Start moving a Note from the info panel (close the panel first so the
    * map's Modify interaction is unobstructed). */
   protected onNoteMove(id: string) {
+    // Capture the panel's already-fetched note before closing so Move works even
+    // when the note is not in the map cache.
+    const note = this.infoPanel.item()?.resource as SKNote;
     if (this.infoPanel.opened()) {
       this.infoPanel.close();
       this.closeDrawer();
     }
-    this.skres.startNoteModify(id);
+    this.skres.startNoteModify(id, note);
   }
 
   // ********* MAIN MENU ACTIONS *************

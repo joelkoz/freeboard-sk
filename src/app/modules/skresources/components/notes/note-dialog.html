@@ -130,7 +130,7 @@
             >
               <mat-icon>edit</mat-icon>
             </button>
-            &nbsp;
+            &nbsp; @if(data.note.position) {
             <button
               mat-icon-button
               (click)="dialogRef.close({result:true, data: 'move'})"
@@ -138,7 +138,7 @@
             >
               <mat-icon>touch_app</mat-icon>
             </button>
-            &nbsp;
+            &nbsp; }
             <button
               mat-icon-button
               (click)="dialogRef.close({result:true, data: 'delete'})"

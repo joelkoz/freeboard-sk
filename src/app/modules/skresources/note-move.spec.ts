@@ -49,10 +49,24 @@ describe('startNoteModify (#501)', () => {
     };
     expect(features.getLength()).toBe(1);
     expect(features.item(0).getId()).toBe('note.note-1');
-    expect(mapInteract.startModifying).toHaveBeenCalledWith({
-      id: 'note-1',
-      type: 'note'
-    });
+    expect(mapInteract.startModifying).toHaveBeenCalledWith({ type: 'note' });
+  });
+
+  it('uses the passed-in note when the map cache is empty', () => {
+    const mapInteract: FakeMapInteract = {
+      draw: { features: null },
+      startModifying: vi.fn()
+    };
+    // cache miss (fromCache -> null) — the details view supplies the note
+    const svc = svcWithNote(null, mapInteract);
+
+    svc.startNoteModify('note-1', {
+      position: { latitude: 25.5, longitude: -80.5 }
+    } as unknown as Parameters<SKResourceService['startNoteModify']>[1]);
+
+    const features = mapInteract.draw.features as { getLength: () => number };
+    expect(features.getLength()).toBe(1);
+    expect(mapInteract.startModifying).toHaveBeenCalledWith({ type: 'note' });
   });
 
   it('does nothing for a note with no position', () => {
@@ -61,6 +75,19 @@ describe('startNoteModify (#501)', () => {
       startModifying: vi.fn()
     };
     const svc = svcWithNote({}, mapInteract);
+
+    svc.startNoteModify('note-1');
+
+    expect(mapInteract.startModifying).not.toHaveBeenCalled();
+    expect(mapInteract.draw.features).toBeNull();
+  });
+
+  it('does nothing when the note is not cached and none is passed', () => {
+    const mapInteract: FakeMapInteract = {
+      draw: { features: null },
+      startModifying: vi.fn()
+    };
+    const svc = svcWithNote(null, mapInteract);
 
     svc.startNoteModify('note-1');
 

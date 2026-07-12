@@ -10,7 +10,7 @@ import { fromLonLat } from 'ol/proj';
 import { SignalKClient } from 'signalk-client-angular';
 import { AppFacade } from 'src/app/app.facade';
 import { GeoUtils } from 'src/app/lib/geoutils';
-import { FBMapInteractService, IPopover } from '../map/fbmap-interact.service';
+import { FBMapInteractService } from '../map/fbmap-interact.service';
 
 import {
   NoteDialog,
@@ -2123,21 +2123,24 @@ export class SKResourceService {
    * @description Start the map Modify interaction to reposition a Note.
    * Reconstructs the note's map feature so Move works regardless of how the
    * details surface was reached (map click, info panel, or a resource list).
+   * Prefers the already-fetched note; falls back to the map cache, which may be
+   * empty for a note reached from a server-fetched details view.
    * @param id Note identifier
+   * @param note Already-fetched note (from the details surface), if available
    */
-  public startNoteModify(id: string) {
-    const t = this.fromCache('notes', id);
-    if (!t || !t[1].position) {
+  public startNoteModify(id: string, note?: SKNote) {
+    const n = note ?? this.fromCache('notes', id)?.[1];
+    if (!n?.position) {
       return;
     }
     const feature = new Feature({
       geometry: new Point(
-        fromLonLat([t[1].position.longitude, t[1].position.latitude])
+        fromLonLat([n.position.longitude, n.position.latitude])
       )
     });
     feature.setId('note.' + id);
     this.mapInteract.draw.features = new Collection([feature]);
-    this.mapInteract.startModifying({ id: id, type: 'note' } as IPopover);
+    this.mapInteract.startModifying({ type: 'note' });
   }
 
   /**
@@ -2440,7 +2443,7 @@ export class SKResourceService {
             this.showNoteEditor({ id: id });
           }
           if (r.data === 'move') {
-            this.startNoteModify(id);
+            this.startNoteModify(id, note);
           }
           if (r.data === 'delete') {
             this.deleteNote(id);
