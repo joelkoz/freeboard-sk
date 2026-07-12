@@ -74,6 +74,7 @@ export interface IAppConfig {
     showNotes: boolean; // show/hide notes
     autoNightMode: boolean;
   };
+  imageAdjustPalettePos: { x: number; y: number } | null; // remembered drag offset of the chart Image Adjustment palette
   display: {
     fab: MFBAction; // FAB button selection
     disableWakelock: boolean;
