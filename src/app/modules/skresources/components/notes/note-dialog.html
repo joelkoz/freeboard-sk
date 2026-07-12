@@ -133,6 +133,14 @@
             &nbsp;
             <button
               mat-icon-button
+              (click)="dialogRef.close({result:true, data: 'move'})"
+              matTooltip="Move Note"
+            >
+              <mat-icon>touch_app</mat-icon>
+            </button>
+            &nbsp;
+            <button
+              mat-icon-button
               (click)="dialogRef.close({result:true, data: 'delete'})"
               matTooltip="Delete Note"
             >

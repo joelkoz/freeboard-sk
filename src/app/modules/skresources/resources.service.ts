@@ -3,10 +3,14 @@ import { moveItemInArray } from '@angular/cdk/drag-drop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog } from '@angular/material/dialog';
 import ngeohash from 'ngeohash';
+import { Collection, Feature } from 'ol';
+import { Point } from 'ol/geom';
+import { fromLonLat } from 'ol/proj';
 
 import { SignalKClient } from 'signalk-client-angular';
 import { AppFacade } from 'src/app/app.facade';
 import { GeoUtils } from 'src/app/lib/geoutils';
+import { FBMapInteractService, IPopover } from '../map/fbmap-interact.service';
 
 import {
   NoteDialog,
@@ -83,6 +87,7 @@ export class SKResourceService {
   private dialog = inject(MatDialog);
   private signalk = inject(SignalKClient);
   private worker = inject(SKWorkerService);
+  private mapInteract = inject(FBMapInteractService);
 
   constructor() {
     this.worker
@@ -2115,6 +2120,27 @@ export class SKResourceService {
   }
 
   /**
+   * @description Start the map Modify interaction to reposition a Note.
+   * Reconstructs the note's map feature so Move works regardless of how the
+   * details surface was reached (map click, info panel, or a resource list).
+   * @param id Note identifier
+   */
+  public startNoteModify(id: string) {
+    const t = this.fromCache('notes', id);
+    if (!t || !t[1].position) {
+      return;
+    }
+    const feature = new Feature({
+      geometry: new Point(
+        fromLonLat([t[1].position.longitude, t[1].position.latitude])
+      )
+    });
+    feature.setId('note.' + id);
+    this.mapInteract.draw.features = new Collection([feature]);
+    this.mapInteract.startModifying({ id: id, type: 'note' } as IPopover);
+  }
+
+  /**
    * @description Create note resource on the server
    * @param note SKNote object
    */
@@ -2412,6 +2438,9 @@ export class SKResourceService {
           }
           if (r.data === 'edit') {
             this.showNoteEditor({ id: id });
+          }
+          if (r.data === 'move') {
+            this.startNoteModify(id);
           }
           if (r.data === 'delete') {
             this.deleteNote(id);
