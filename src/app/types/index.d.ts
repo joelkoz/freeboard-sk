@@ -92,6 +92,7 @@ export interface IAppConfig {
     };
     preferInfoPanel: boolean;
     singleClickNoteDetails: boolean;
+    windIndicator: 'arrow' | 'barb'; // glyph used to render wind direction/speed
     statusBar: {
       liveEta: boolean; // show cursor bearing/distance/ETA in the status bar (mouse only)
       referenceSpeed: number; // fallback boat speed (in display speed units) for ETA when SOG is ~0

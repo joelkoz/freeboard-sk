@@ -165,6 +165,11 @@ export class SettingsOptions {
     [-1, 'On']
   ]);
 
+  windIndicator = new Map([
+    ['barb', 'Wind barb'],
+    ['arrow', 'Arrow']
+  ]);
+
   vessel = {
     selfIconScale: new Map([
       [0.75, 'S'],

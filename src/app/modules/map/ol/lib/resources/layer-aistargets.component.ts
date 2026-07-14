@@ -1,7 +1,9 @@
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
-  Component
+  Component,
+  Input,
+  SimpleChanges
 } from '@angular/core';
 import { Feature } from 'ol';
 import { Style, RegularShape, Fill, Stroke, Text, Icon } from 'ol/style';
@@ -12,6 +14,7 @@ import { AISBaseLayerComponent, SKTarget } from './ais-base.component';
 import { MapImageRegistry } from '../map-image-registry.service';
 import { SKMeteo } from 'src/app/modules';
 import { meteoWindBucket } from 'src/app/modules/icons';
+import { Convert } from 'src/app/lib/convert';
 
 // ** Signal K non-vessel targets **
 @Component({
@@ -21,6 +24,10 @@ import { meteoWindBucket } from 'src/app/modules/icons';
   standalone: false
 })
 export class AISTargetsLayerComponent extends AISBaseLayerComponent {
+  // Wind glyph for meteo (weather-station) targets: 'barb' (default) or the
+  // 'arrow' with a speed label. Ignored for non-meteo target contexts.
+  @Input() windIndicator: 'arrow' | 'barb' = 'barb';
+
   constructor(
     protected override mapComponent: MapComponent,
     protected override changeDetectorRef: ChangeDetectorRef,
@@ -32,6 +39,17 @@ export class AISTargetsLayerComponent extends AISBaseLayerComponent {
   override ngOnInit() {
     super.ngOnInit();
     this.labelPrefixes = [this.targetContext];
+  }
+
+  override ngOnChanges(changes: SimpleChanges) {
+    super.ngOnChanges(changes);
+    if (
+      this.layer &&
+      changes['windIndicator'] &&
+      !changes['windIndicator'].firstChange
+    ) {
+      this.onUpdateTargets(this.extractKeys(this.targets));
+    }
   }
 
   // reload all Features from this.targets
@@ -110,22 +128,57 @@ export class AISTargetsLayerComponent extends AISBaseLayerComponent {
     }
   }
 
-  // Meteo (weather-station) targets render a wind barb rotated to the reported
-  // wind direction; every other target keeps its fixed orientation.
+  // Whether this meteo target should render as an arrow (only when the arrow
+  // indicator is selected and the target reports a usable wind).
+  private isMeteoArrow(target: SKTarget): boolean {
+    if (this.targetContext !== 'meteo' || this.windIndicator !== 'arrow') {
+      return false;
+    }
+    const meteo = target as SKMeteo;
+    return Boolean(meteoWindBucket(meteo.tws)) && Number.isFinite(meteo.twd);
+  }
+
+  // Meteo (weather-station) targets rotate to the reported wind: a barb's staff
+  // points into the wind (its "from" direction); an arrow points where the wind
+  // flows to. Every other target keeps its fixed orientation.
   private targetRotation(target: SKTarget): number {
     if (this.targetContext !== 'meteo') {
       return target.orientation;
     }
     const meteo = target as SKMeteo;
+    if (this.isMeteoArrow(target)) {
+      return meteo.twd + Math.PI;
+    }
     return meteoWindBucket(meteo.tws) && Number.isFinite(meteo.twd)
       ? meteo.twd
       : 0;
   }
 
+  // Whether a meteo target reports a wind speed to display alongside its glyph.
+  private hasMeteoWind(target: SKTarget): boolean {
+    return (
+      this.targetContext === 'meteo' && Number.isFinite((target as SKMeteo).tws)
+    );
+  }
+
+  // Append the wind speed to a meteo target's label for both indicators — the
+  // speed value is always shown, whether the glyph is an arrow or a barb.
+  protected override buildLabel(target: SKTarget): string {
+    const label = super.buildLabel(target);
+    if (!this.hasMeteoWind(target)) {
+      return label;
+    }
+    const speed = `${Math.round(
+      Convert.transform((target as SKMeteo).tws, 'm/s', 'kn')
+    )} kn`;
+    return label ? `${label} ${speed}` : speed;
+  }
+
   // build target style
   buildStyle(target: SKTarget): Style {
-    const icon =
-      this.targetContext === 'meteo'
+    const icon = this.isMeteoArrow(target)
+      ? this.mapImages.getWindArrow()
+      : this.targetContext === 'meteo'
         ? this.mapImages.getMeteoIcon((target as SKMeteo).tws, target.virtual)
         : this.mapImages.getAtoN(target.type?.id, target.virtual);
     if (icon && typeof this.targetStyles === 'undefined') {

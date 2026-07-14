@@ -370,6 +370,7 @@
       [darkMode]="app.uiConfig().invertColor"
       [targets]="dfeat.meteo"
       targetContext="meteo"
+      [windIndicator]="app.config.display.windIndicator"
       [labelMinZoom]="this.app.config.map.labelsMinZoom"
       [mapZoom]="mapZoomLevel()"
       [updateIds]="skstream.aisStatus().updated"
@@ -871,6 +872,7 @@
   <fb-weather-wind
     [show]="app.config.selections.weatherWindEnabled"
     [opacity]="0.55"
+    [indicator]="app.config.display.windIndicator"
   >
   </fb-weather-wind>
 
