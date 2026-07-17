@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, tap } from 'rxjs/operators';
 import { SignalKClient } from 'signalk-client-angular';
 
 export interface WeatherWindSample {
@@ -38,6 +38,16 @@ interface SkObservation {
 
 @Injectable({ providedIn: 'root' })
 export class WeatherService {
+  // Ocean-current results are cached by request URL to avoid re-hitting the
+  // rate-limited public Open-Meteo endpoint when the user pans back to a
+  // previously-viewed area. Currents change slowly, so a coarse TTL is fine.
+  private readonly currentsCacheTtlMs = 10 * 60 * 1000;
+  private readonly currentsCacheMax = 50;
+  private currentsCache = new Map<
+    string,
+    { at: number; samples: OceanCurrentSample[] }
+  >();
+
   constructor(
     private http: HttpClient,
     private sk: SignalKClient
@@ -97,8 +107,12 @@ export class WeatherService {
       `&longitude=${longitudes}` +
       '&current=ocean_current_velocity,ocean_current_direction';
 
+    const cached = this.currentsCache.get(url);
+    if (cached && Date.now() - cached.at < this.currentsCacheTtlMs) {
+      return of(cached.samples);
+    }
+
     return this.http.get<OpenMeteoMarineItem | OpenMeteoMarineItem[]>(url).pipe(
-      catchError(() => of([])),
       map((response) => (Array.isArray(response) ? response : [response])),
       map((items) =>
         items
@@ -113,7 +127,28 @@ export class WeatherService {
             velocity: item.current!.ocean_current_velocity,
             direction: item.current!.ocean_current_direction
           }))
-      )
+      ),
+      // Only cache genuine data — an empty result means a rate-limit/error
+      // response, which must be retryable rather than pinned for the TTL.
+      tap((samples) => {
+        if (samples.length > 0) {
+          this.cacheCurrents(url, samples);
+        }
+      }),
+      catchError(() => of<OceanCurrentSample[]>([]))
     );
+  }
+
+  private cacheCurrents(url: string, samples: OceanCurrentSample[]) {
+    // Re-insert at the newest position so a refreshed entry isn't treated as
+    // oldest by the size-based eviction below.
+    this.currentsCache.delete(url);
+    if (this.currentsCache.size >= this.currentsCacheMax) {
+      const oldest = this.currentsCache.keys().next().value;
+      if (oldest !== undefined) {
+        this.currentsCache.delete(oldest);
+      }
+    }
+    this.currentsCache.set(url, { at: Date.now(), samples });
   }
 }
