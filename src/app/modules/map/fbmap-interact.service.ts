@@ -75,6 +75,7 @@ export interface DrawFeatureInfo {
   forSave: any;
   properties: { [key: string]: any };
   style?: any; // feature draw style
+  name?: string; // display name of the feature being modified (helper title)
 }
 
 @Injectable({ providedIn: 'root' })

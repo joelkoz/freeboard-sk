@@ -72,6 +72,15 @@ export class InteractionDrawComponent {
     }
   }
 
+  /**
+   * Complete the current sketch, as a double-click does. A no-op until the
+   * sketch has enough points to be valid (≥2 for a LineString), letting a
+   * "Finish" button end a route draw without the double-click gesture.
+   */
+  finishDrawing() {
+    this.interaction?.finishDrawing();
+  }
+
   // ** emit events
   private emitChangeEvent = (event: DrawEvent) => this.change.emit(event);
   private emitDrawStartEvent = (event: DrawEvent) => this.drawStart.emit(event);
