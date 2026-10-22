@@ -12,6 +12,8 @@ export type LedgerFileRow = FeatureLedgerRow & Record<string, unknown>;
 /** A squash-merge commit subject, parsed. */
 export interface ParsedCommit {
   type: string;
+  /** The `(scope)` of the subject, or null when it has none. */
+  scope: string | null;
   title: string;
   pr: number | null;
 }
@@ -137,7 +139,7 @@ export function stripTypePrefix(title: string | undefined): string {
     .trim();
 }
 
-const SUBJECT_RE = /^([a-z]+)(?:\([^)]*\))?!?:\s*(.*?)(?:\s*\(#(\d+)\))?$/i;
+const SUBJECT_RE = /^([a-z]+)(?:\(([^)]*)\))?!?:\s*(.*?)(?:\s*\(#(\d+)\))?$/i;
 
 /** Parse a squash-merge commit subject: "feat(map): title (#123)". */
 export function parseCommitSubject(subject: string): ParsedCommit | null {
@@ -145,9 +147,49 @@ export function parseCommitSubject(subject: string): ParsedCommit | null {
   if (!m) return null;
   return {
     type: m[1].toLowerCase(),
-    title: m[2].trim(),
-    pr: m[3] ? Number(m[3]) : null
+    scope: m[2]?.trim() || null,
+    title: m[3].trim(),
+    pr: m[4] ? Number(m[4]) : null
   };
+}
+
+// Scopes that name code rather than something a user would recognise. Any
+// scope not listed is shown capitalised, with hyphens as spaces.
+const SCOPE_LABELS: Record<string, string> = {
+  ais: 'AIS',
+  api: 'Extensions API',
+  deps: 'Dependencies',
+  'deps-dev': 'Dev dependencies',
+  features: 'Feature docs',
+  'fsk-mcp': 'fsk-mcp',
+  gpx: 'GPX',
+  helper: 'Helper plugin',
+  lessons: 'Lessons log',
+  plotterext: 'Extensions',
+  s57: 'S-57 charts',
+  's57-popover': 'S-57 charts',
+  skresources: 'Resources',
+  skstream: 'Live data',
+  ts: 'TypeScript',
+  ui: 'Display'
+};
+
+/**
+ * The label a release-notes line shows for a commit scope, so a fix reads
+ * "Anchor: keep the default radius" rather than losing what it applies to.
+ * Null for no scope or the wildcard `*`.
+ */
+export function scopeLabel(scope: string | null | undefined): string | null {
+  const labels = String(scope || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => s && s !== '*')
+    .map(
+      (s) =>
+        SCOPE_LABELS[s] ??
+        s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, ' ')
+    );
+  return labels.length ? [...new Set(labels)].join(', ') : null;
 }
 
 /** One-line summary of a feature doc body: first sentence, images/markup stripped. */
@@ -197,7 +239,7 @@ const TYPE_HEADINGS = { fix: '🐛 Bug Fixes' };
  * - New Features: features with a `new` row in this release (doc title + summary).
  * - Improvements: features enhanced (only) in this release (per enhancement).
  * - Bug Fixes / Other Changes: merged PRs in range NOT present in the ledger,
- *   grouped by conventional-commit type.
+ *   grouped by conventional-commit type, each led by its scope's label.
  */
 export function renderNotes({
   ledger,
@@ -265,7 +307,12 @@ export function renderNotes({
     if (!items || !items.length) return;
     sections.push(
       `## ${heading}\n\n` +
-        items.map((c) => `- ${c.title} (#${c.pr})`).join('\n')
+        items
+          .map((c) => {
+            const label = scopeLabel(c.scope);
+            return `- ${label ? `**${label}:** ` : ''}${c.title} (#${c.pr})`;
+          })
+          .join('\n')
     );
   };
   fixList('fix', TYPE_HEADINGS.fix);

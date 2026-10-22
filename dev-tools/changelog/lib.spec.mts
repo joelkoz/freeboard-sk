@@ -7,6 +7,7 @@ import {
   serializeLedger,
   stripTypePrefix,
   parseCommitSubject,
+  scopeLabel,
   docSummary,
   renderNotes,
   latestTag,
@@ -104,10 +105,27 @@ describe('stripTypePrefix / parseCommitSubject / docSummary', () => {
   it('parses a squash-merge subject', () => {
     expect(parseCommitSubject('fix(map): guard canvas (#519)')).toEqual({
       type: 'fix',
+      scope: 'map',
       title: 'guard canvas',
       pr: 519
     });
+    expect(parseCommitSubject('chore: tidy up (#7)')).toEqual({
+      type: 'chore',
+      scope: null,
+      title: 'tidy up',
+      pr: 7
+    });
     expect(parseCommitSubject('not a conventional subject')).toBeNull();
+  });
+  it('labels a scope for the release notes', () => {
+    expect(scopeLabel('anchor')).toBe('Anchor');
+    expect(scopeLabel('info-panel')).toBe('Info panel');
+    expect(scopeLabel('plotterext')).toBe('Extensions');
+    expect(scopeLabel('S57')).toBe('S-57 charts');
+    expect(scopeLabel('s57, s57-popover')).toBe('S-57 charts');
+    expect(scopeLabel('map,routes')).toBe('Map, Routes');
+    expect(scopeLabel('*')).toBeNull();
+    expect(scopeLabel(null)).toBeNull();
   });
   it('summarises a doc body to one sentence, images stripped', () => {
     expect(
@@ -159,10 +177,15 @@ describe('renderNotes', () => {
     radar: { title: 'Radar', summary: 'Radar overlay.' }
   };
   const commits = [
-    { type: 'fix', title: 'guard OffscreenCanvas on non-WebGL', pr: 519 },
-    { type: 'feat', title: 'add overlays', pr: 413 }, // in ledger → excluded
-    { type: 'perf', title: 'speed up tile load', pr: 512 },
-    { type: 'chore', title: 'bump deps', pr: 400 }
+    {
+      type: 'fix',
+      scope: 'radar',
+      title: 'guard OffscreenCanvas on non-WebGL',
+      pr: 519
+    },
+    { type: 'feat', scope: 'weather', title: 'add overlays', pr: 413 }, // in ledger → excluded
+    { type: 'perf', scope: 'plotterext', title: 'speed up tile load', pr: 512 },
+    { type: 'chore', scope: null, title: 'bump deps', pr: 400 }
   ];
 
   it('renders grouped notes for a release', () => {
@@ -173,9 +196,9 @@ describe('renderNotes', () => {
         '## ✨ Improvements\n\n' +
         '- **Anchor Watch** — add drag alarm\n\n' +
         '## 🐛 Bug Fixes\n\n' +
-        '- guard OffscreenCanvas on non-WebGL (#519)\n\n' +
+        '- **Radar:** guard OffscreenCanvas on non-WebGL (#519)\n\n' +
         '## 🔧 Other Changes\n\n' +
-        '- speed up tile load (#512)\n' +
+        '- **Extensions:** speed up tile load (#512)\n' +
         '- bump deps (#400)\n'
     );
   });
@@ -186,7 +209,7 @@ describe('renderNotes', () => {
         { feature: 'x', pr: 1, kind: 'new', since: 'v1.0.0', title: 'feat: x' }
       ],
       features: { x: { title: 'X', summary: 'The X.' } },
-      commits: [{ type: 'feat', title: 'x', pr: 1 }], // the only commit is the ledger PR
+      commits: [{ type: 'feat', scope: null, title: 'x', pr: 1 }], // the only commit is the ledger PR
       tag: 'v1.0.0'
     });
     expect(body).toBe('## 🚀 New Features\n\n- **X** — The X.\n');
@@ -214,7 +237,7 @@ describe('undocumentedPRs', () => {
     type: string,
     pr: number | null,
     title = 'a change'
-  ): ParsedCommit => ({ type, pr, title });
+  ): ParsedCommit => ({ type, scope: null, pr, title });
 
   it('lists feat and perf PRs with no ledger row', () => {
     const commits = [commit('feat', 12), commit('perf', 13)];

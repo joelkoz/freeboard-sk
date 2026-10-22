@@ -39,7 +39,11 @@ touches GitHub, so `render <tag> > preview.md` is a safe **dry run**. Sections:
 - **🚀 New Features** — features with a `new` row in this release (doc title + summary).
 - **✨ Improvements** — features enhanced (only) in this release.
 - **🐛 Bug Fixes / 🔧 Other Changes** — PRs merged in the tag range that are **not** in
-  the ledger, grouped by conventional-commit type.
+  the ledger, grouped by conventional-commit type. Each line starts with its scope as a
+  label (`fix(anchor): …` → **Anchor:**), since these lines have no feature title to
+  say what they apply to. Scopes that name code rather than something a user knows
+  (`plotterext`, `skstream`, …) map to a friendlier label in `SCOPE_LABELS`
+  (`lib.mts`).
 
 The tag range's lower bound is the previous **stable** tag for a stable release (so it
 spans all the betas) or the previous tag of any kind for a pre-release. `render` reads
