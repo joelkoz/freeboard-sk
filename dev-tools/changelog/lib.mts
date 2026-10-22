@@ -158,6 +158,7 @@ export function parseCommitSubject(subject: string): ParsedCommit | null {
 const SCOPE_LABELS: Record<string, string> = {
   ais: 'AIS',
   api: 'Extensions API',
+  ci: 'CI',
   deps: 'Dependencies',
   'deps-dev': 'Dev dependencies',
   features: 'Feature docs',
@@ -166,12 +167,14 @@ const SCOPE_LABELS: Record<string, string> = {
   helper: 'Helper plugin',
   lessons: 'Lessons log',
   plotterext: 'Extensions',
+  readme: 'README',
   s57: 'S-57 charts',
   's57-popover': 'S-57 charts',
   skresources: 'Resources',
   skstream: 'Live data',
+  stream: 'Live data',
   ts: 'TypeScript',
-  ui: 'Display'
+  ui: 'Interface'
 };
 
 /**

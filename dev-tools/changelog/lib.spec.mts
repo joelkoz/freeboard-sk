@@ -115,6 +115,12 @@ describe('stripTypePrefix / parseCommitSubject / docSummary', () => {
       title: 'tidy up',
       pr: 7
     });
+    expect(parseCommitSubject('feat(map)!: drop the old view (#1)')).toEqual({
+      type: 'feat',
+      scope: 'map',
+      title: 'drop the old view',
+      pr: 1
+    });
     expect(parseCommitSubject('not a conventional subject')).toBeNull();
   });
   it('labels a scope for the release notes', () => {
@@ -122,6 +128,7 @@ describe('stripTypePrefix / parseCommitSubject / docSummary', () => {
     expect(scopeLabel('info-panel')).toBe('Info panel');
     expect(scopeLabel('plotterext')).toBe('Extensions');
     expect(scopeLabel('S57')).toBe('S-57 charts');
+    expect(scopeLabel('ci')).toBe('CI');
     expect(scopeLabel('s57, s57-popover')).toBe('S-57 charts');
     expect(scopeLabel('map,routes')).toBe('Map, Routes');
     expect(scopeLabel('*')).toBeNull();
